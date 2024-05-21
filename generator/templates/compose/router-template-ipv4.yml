@@ -1,0 +1,11 @@
+  ${name}:
+    container_name: ${name}
+    image: ${dockerImage}
+    command: sh -c "${additionalCommands}(ip r d default) & (tail -f /dev/null)"
+    restart: on-failure
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - CLT_ENABLE=${CLT_ENABLE}
+    sysctls:
+      - net.ipv4.conf.all.forwarding=1

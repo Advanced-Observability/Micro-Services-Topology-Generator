@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    name: ${name}
+  name: ${name}
+spec:
+  hostname: ${name}
+  subdomain: ${serviceName}
+  containers:
+    - args:
+        ${cmd}
+      env:
+        - name: SERVICE_NAME
+          value: ${shortName}
+        - name: IOAM_COLLECTOR
+          value: ${COLLECTOR_HOSTNAME}
+        - name: CLT_ENABLE
+          value: ${CLT_ENABLE}
+        - name: JAEGER_ENABLE
+          value: ${JAEGER_ENABLE}
+        - name: JAEGER_HOSTNAME
+          value: ${JAEGER_HOSTNAME}
+        - name: HTTP_VERSION
+          value: ${HTTP_VER}
+        - name: IP_VERSION
+          value: ${IP_VERSION}
+        - name: CERT_FILE
+          value: ${CERT_FILE}
+        - name: KEY_FILE
+          value: ${KEY_FILE}
+      image: ${image}
+      imagePullPolicy: Never
+      name: ${name}
+      ports:
+        - containerPort: ${port}
+          hostPort: ${port}
+          protocol: TCP
+      securityContext:
+        runAsUser: 0
+        privileged: True
+        capabilities:
+          add:
+            - NET_ADMIN
+            - SYS_ADMIN
+  restartPolicy: OnFailure
+  securityContext:
+    sysctls:
+      - name: net.ipv6.conf.all.forwarding
+        value: "1"
+      - name: net.ipv4.conf.all.forwarding
+        value: "1"

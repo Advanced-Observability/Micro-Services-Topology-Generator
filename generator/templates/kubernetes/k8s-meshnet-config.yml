@@ -1,0 +1,6 @@
+apiVersion: networkop.co.uk/v1beta1
+kind: Topology
+metadata:
+  name: ${pod_name}
+spec:
+  links:

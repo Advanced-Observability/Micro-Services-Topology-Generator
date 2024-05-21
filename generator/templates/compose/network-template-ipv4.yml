@@ -1,0 +1,8 @@
+  ${name}:
+    name: ${name}
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+       - subnet: ${subnet}
+         gateway: ${gateway}

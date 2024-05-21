@@ -1,0 +1,16 @@
+  jaeger:
+    container_name: jaeger
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - 16686:16686
+      - 14268:14268
+      - 4317:4317
+      - 4318:4318
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - QUERY_MAX_CLOCK_SKEW_ADJUSTMENT=5s
+      - MEMORY_MAX_TRACES=100
+      - LOG_LEVEL=warn
+    networks:
+      network_telemetry:
+        ipv4_address: 0.0.4.2

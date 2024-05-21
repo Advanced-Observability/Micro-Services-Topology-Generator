@@ -1,0 +1,14 @@
+  ${name}:
+    container_name: ${name}
+    image: ${dockerImage}
+    command: sh -c "${additionalCommands}(/sbin/ip r d default) & (/usr/local/bin/service /etc/config.yml)"
+    restart: on-failure
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - SERVICE_NAME=${name}
+      - IOAM_COLLECTOR=ioam-collector:7123
+      - CLT_ENABLE=${CLT_ENABLE}
+      - JAEGER_ENABLE=${JAEGER_ENABLE}
+      - HTTP_VERSION=${HTTP_VER}
+      - IP_VERSION=4

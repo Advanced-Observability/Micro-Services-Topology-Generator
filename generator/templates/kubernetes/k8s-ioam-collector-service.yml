@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ioam-collector-svc
+spec:
+  type: NodePort
+  ports:
+    - name: "ioam-collector"
+      port: 7123
+      targetPort: 7123
+      nodePort: ${nodePort}
+  selector:
+    name: ioam-collector-pod
+status:
+  loadBalancer: {}

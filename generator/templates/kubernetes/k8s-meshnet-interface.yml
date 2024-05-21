@@ -1,0 +1,6 @@
+  - uid: ${id}
+    peer_pod: ${peer_name}
+    local_intf: ${local_eth}
+    peer_intf: ${peer_eth}
+    local_ip: ${local_ip}
+    peer_ip: ${peer_ip}
