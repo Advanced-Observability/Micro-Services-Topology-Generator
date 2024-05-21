@@ -10,11 +10,11 @@ Routers can be added between the services to simulate a real network environment
 
 See [`generator/README.md`](./generator/README.md) for details on the generator of configuration files.
 
-Architecture of MSTG:
+### 🌐 Architecture of MSTG:
 
 ![architecture](./MSTG.png)
 
-## Usage
+## 🚀 Getting Started
 
 ### Specify the architecture
 
@@ -39,11 +39,11 @@ The Docker images for the CLT version can be build with:
 make images_clt
 ```
 
-### Generation
+### Generate the topology
 
 You have 2 possibilities when it comes to the output of the generator:
 
-- You can generate a **Docker Compose file** which can be used to deploy the topology on a *single machine*.
+- You can generate a **Docker Compose** file which can be used to deploy the topology on a *single machine*.
 - You can generate the configuration files for **Kubernetes** which can be used to deploy the topology on *one or more machines*.
 
 #### Docker Compose
@@ -103,14 +103,14 @@ make stop
 
 See [K8S.md](./K8S.md) for explanations regarding the deployment to Kubernetes.
 
-## CLT
+## 🔍 Cross-Layer Telemetry (CLT)
 
 This tool can be used to demonstrate the capabilities of [Cross-Layer-Telemetry](https://github.com/Advanced-Observability/cross-layer-telemetry).
 
 Telemetry data will be generated with [OpenTelemetry](https://opentelemetry.io/) and displayed with [Jaeger](https://www.jaegertracing.io/).
 Furthermore, telemetry data related to the routers will be generated with [IOAM](https://datatracker.ietf.org/doc/rfc9197/) and gathered with OpenTelemetry data in Jaeger by using the [IOAM collector for Jaeger](https://github.com/Advanced-Observability/ioam-collector-go-jaeger).
 
-## Requirements
+## 📋 Requirements
 
 In order to use these tools, you need the following:
 - [Docker](https://docs.docker.com/get-docker/).

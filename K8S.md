@@ -33,6 +33,14 @@ It allows the creation of pod-to-pod direct connections across nodes using [VXLA
 > When it is used in an IPv6 only cluster, there is an **issue** with gRPC in the implementation of Meshnet-CNI.
 We have **patched** the implementation of Meshnet and opened a [pull request](https://github.com/networkop/meshnet-cni/pull/83) on the [official repository](https://github.com/networkop/meshnet-cni). In the meantime, the [patched version](https://github.com/maxgoffart/meshnet-cni/tree/fix_grpc_ipv6) **must** be used if you are using an IPv6 only cluster.
 
+
+Initialize and pull our Meshnet-CNI patch as a submodule.
+
+```bash
+git submodule init
+git submodule update
+```
+
 Once you have cloned the patched Meshnet-CNI and launched your cluster, you need to use the following command to install Meshnet-CNI on your cluster:
 ```shell
 make docker
