@@ -1,4 +1,4 @@
 [submodule "meshnet-cni"]
 	path = meshnet-cni
-	url = git@github.com:maxgoffart/meshnet-cni.git
+	url = https://github.com/maxgoffart/meshnet-cni
 	branch = fix_grpc_ipv6
