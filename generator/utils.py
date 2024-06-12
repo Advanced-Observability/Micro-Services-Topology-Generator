@@ -96,15 +96,15 @@ def check_arguments() -> str:
 
 def check_docker_engine_version():
     """
-    Check version of docker engine running on host
-    due to issues with sysctl and docker engine >26.
+    Check version of Docker Engine running on host
+    due to issues with sysctl and Docker Engine == 26.0.0.
     """
 
     versionCheck = subprocess.run(DE_GET_VERSION, shell=True, stdout=subprocess.PIPE)
 
     if versionCheck.returncode != 0:
         raise RuntimeError("Could not get version of Docker Engine")
-    
+
     version = versionCheck.stdout.decode("utf-8").strip()
 
     vNumber = re.search("\d+.\d+.\d+", version).group(0)
@@ -112,28 +112,22 @@ def check_docker_engine_version():
     if len(vNumbers) != 3:
         raise RuntimeError("Unexpected format of docker engine version number")
 
-    if int(vNumbers[0]) < 26:
+    # only version 26.0.0 is problematic
+    if not (int(vNumbers[0]) == 26 and int(vNumbers[1]) == 0 and int(vNumbers[2]) == 0):
         os.environ[DE_ENV_SYSCTL] = "1"
         return
-    
-    print_warning("Docker engine 26 introduces a modification that prevents configuration of interfaces during container creation with sysctl")
+
+    print_warning("Docker Engine 26 introduces a modification that prevents configuration of interfaces during container creation with sysctl.")
     print_warning("See issue https://github.com/moby/moby/issues/47619")
     print_warning("See issue https://github.com/moby/moby/issues/47639")
     print_warning("Fixed in commit https://github.com/moby/moby/commit/fc14d8f9329acd938e22afd0ed4edcfa71dfc40a")
     print_warning("Details in merge request https://github.com/moby/moby/pull/47646")
-    print_warning("Need to wait for commit to be in upstream")
+    print_warning("This may lead to unexpected behavior!")
+    print_warning("It has been patched in v26.0.1 of the Docker Engine.")
+    print_warning("You should consider updating to v26.0.1 or a newer version.")
 
-    print_warning("Checking if your system is patched with:")
-    print_warning(f"\t{DE_CHECK_SYSCTL}")
-
-    check = subprocess.run(DE_CHECK_SYSCTL, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if check.returncode != 0:
-        print_warning("Your instance of docker engine is *NOT* patched")
-        print_warning("Will *NOT* generate sysctl configurations")
-        print_warning("MIGHT LEAD TO SOME ISSUES!")
-        os.environ[DE_ENV_SYSCTL] = "0"
-    else:
-        os.environ[DE_ENV_SYSCTL] = "1"
+    os.environ[DE_ENV_SYSCTL] = "0"
+    return
 
 def output_is_compose() -> bool:
     """True if output is Docker Compose."""

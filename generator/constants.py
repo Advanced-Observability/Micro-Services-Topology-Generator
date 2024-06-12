@@ -147,7 +147,6 @@ PATH_KEY_FILE = "/server.key"
 # --------------------------------------- DOCKER ENGINE -----------------------------------------------
 
 DE_GET_VERSION = "docker --version"
-DE_CHECK_SYSCTL = "docker run --rm --sysctl net.ipv4.conf.eth0.forwarding=1 alpine sh"
 DE_ENV_SYSCTL = "DE_ENV_SYSCTL"
 
 # --------------------------------------- KUBERNETES -----------------------------------------------
