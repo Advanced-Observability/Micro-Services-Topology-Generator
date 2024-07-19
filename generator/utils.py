@@ -97,7 +97,7 @@ def check_arguments() -> str:
 def check_docker_engine_version():
     """
     Check version of Docker Engine running on host
-    due to issues with sysctl and Docker Engine == 26.0.0.
+    due to issues with sysctls and Docker Engine == 26.0.0 or >= 27.0.0.
     """
 
     versionCheck = subprocess.run(DE_GET_VERSION, shell=True, stdout=subprocess.PIPE)
@@ -106,27 +106,29 @@ def check_docker_engine_version():
         raise RuntimeError("Could not get version of Docker Engine")
 
     version = versionCheck.stdout.decode("utf-8").strip()
-
     vNumber = re.search("\d+.\d+.\d+", version).group(0)
-    vNumbers = vNumber.split(".")
-    if len(vNumbers) != 3:
-        raise RuntimeError("Unexpected format of docker engine version number")
 
-    # only version 26.0.0 is problematic
-    if not (int(vNumbers[0]) == 26 and int(vNumbers[1]) == 0 and int(vNumbers[2]) == 0):
+    if len(vNumber.split(".")) != 3:
+        raise RuntimeError("Unexpected format of Docker Engine version number")
+
+    major, minor, revision = [int(i) for i in vNumber.split(".")]
+
+    # versions 26.0.0 and > 27.0.0 are problematic
+    if major >= 27:
+        os.environ[DE_ENV_SYSCTL] = "0"
+    elif major == 26 and minor == 0 and revision == 0:
+        print_warning("Docker Engine 26 introduces a modification that prevents configuration of interfaces during container creation with sysctl.")
+        print_warning("See issue https://github.com/moby/moby/issues/47619")
+        print_warning("See issue https://github.com/moby/moby/issues/47639")
+        print_warning("Fixed in commit https://github.com/moby/moby/commit/fc14d8f9329acd938e22afd0ed4edcfa71dfc40a")
+        print_warning("Details in merge request https://github.com/moby/moby/pull/47646")
+        print_warning("This may lead to unexpected behavior!")
+        print_warning("It has been patched in v26.0.1 of the Docker Engine.")
+        print_warning("You should consider updating to v26.0.1 or a newer version.")
+        os.environ[DE_ENV_SYSCTL] = "0"
+    else:
         os.environ[DE_ENV_SYSCTL] = "1"
-        return
 
-    print_warning("Docker Engine 26 introduces a modification that prevents configuration of interfaces during container creation with sysctl.")
-    print_warning("See issue https://github.com/moby/moby/issues/47619")
-    print_warning("See issue https://github.com/moby/moby/issues/47639")
-    print_warning("Fixed in commit https://github.com/moby/moby/commit/fc14d8f9329acd938e22afd0ed4edcfa71dfc40a")
-    print_warning("Details in merge request https://github.com/moby/moby/pull/47646")
-    print_warning("This may lead to unexpected behavior!")
-    print_warning("It has been patched in v26.0.1 of the Docker Engine.")
-    print_warning("You should consider updating to v26.0.1 or a newer version.")
-
-    os.environ[DE_ENV_SYSCTL] = "0"
     return
 
 def output_is_compose() -> bool:
