@@ -115,7 +115,8 @@ func getRootNoJaeger(writer http.ResponseWriter, r *http.Request) {
 func newHTTPHandler() http.Handler {
 	mux := http.NewServeMux()
 
-	if conf.enableJaeger && !conf.enableIOAM {
+	if conf.enableJaeger {
+		fmt.Println("Using server version with openTelemetry")
 		handleFunc := func(pattern string, handlerFunc func(http.ResponseWriter, *http.Request)) {
 			handler := otelhttp.WithRouteTag(pattern, http.HandlerFunc(handlerFunc))
 			mux.Handle(pattern, handler)
@@ -128,6 +129,7 @@ func newHTTPHandler() http.Handler {
 		handler := otelhttp.NewHandler(mux, "/")
 		return handler
 	} else {
+		fmt.Println("Using server version without openTelemetry")
 		mux.HandleFunc("/", getRootNoJaeger)
 		return mux
 	}

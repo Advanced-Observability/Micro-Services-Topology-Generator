@@ -18,7 +18,7 @@ import (
 
 const (
 	DEFAULT_CONFIG_PATH     = "../config.yml"                                                  // Default path to config file
-	VERSION                 = "0.0.1"                                                          // Version of the service
+	VERSION                 = "0.0.2"                                                          // Version of the service
 	DEFAULT_PACKET_SIZE     = 64                                                               // Default packet size in bytes
 	DEFAULT_JAEGER_HOSTNAME = "jaeger"                                                         // Default Jaeger hostname
 	MAX_LEN_TRACE_RES       = 12                                                               // Maximum number of characters from random string into OTEL
@@ -141,20 +141,16 @@ func readConfig(file string) (map[string]Service, error) {
 	return data, nil
 }
 
-// Parse the CLI arguments and return the path to the config file.
-func parseCliArguments() string {
-	var configPath string
-
+// Parse the CLI arguments
+func parseCliArguments() {
 	if len(os.Args) == 2 && os.Args[1] != "help" {
-		configPath = os.Args[1]
+		conf.configPath = os.Args[1]
 	} else if len(os.Args) == 1 {
-		configPath = DEFAULT_CONFIG_PATH
+		conf.configPath = DEFAULT_CONFIG_PATH
 	} else {
 		fmt.Println("Usage: " + os.Args[0] + " <config file>")
 		os.Exit(1)
 	}
-
-	return configPath
 }
 
 // Parse environment variables.
@@ -187,9 +183,9 @@ func parseEnvVariables() {
 		conf.jaegerHostname = DEFAULT_JAEGER_HOSTNAME
 	}
 
-	if conf.enableCLT {
+	if conf.enableCLT || conf.enableIOAM {
 		if conf.versionIP == "4" {
-			log.Fatal("CLT cannot be used with IPv4")
+			log.Fatal("IOAM/CLT cannot be used with IPv4")
 		}
 		conf.versionIP = "6"
 	} else {
@@ -208,9 +204,19 @@ func parseEnvVariables() {
 // Print info about the service.
 func serviceInfo() {
 	fmt.Println("=== Starting service " + conf.ownName + " ===")
+	fmt.Println("Config file: " + conf.configPath)
 	fmt.Println("Address: " + conf.services[conf.ownName].Addr)
 	fmt.Println("Port: " + strconv.Itoa(conf.services[conf.ownName].Port))
 	fmt.Println("IP version: " + conf.versionIP)
+	fmt.Println("HTTP version: " + conf.httpVersion)
+
+	if conf.enableIOAM {
+		fmt.Println("Using IOAM")
+	}
+
+	if conf.enableJaeger {
+		fmt.Println("Using Jaeger (hostaname: " + conf.jaegerHostname + ")")
+	}
 
 	if conf.enableCLT {
 		fmt.Println("Using CLT agent for netlink communication")

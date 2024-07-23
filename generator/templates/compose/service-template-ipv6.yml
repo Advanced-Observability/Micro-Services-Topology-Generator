@@ -1,10 +1,12 @@
   ${name}:
     container_name: ${name}
     image: ${dockerImage}
-    command: sh -c "${additionalCommands}(/sbin/ip -6 r d default) & (if [ $CLT_ENABLE = "1" ]; then /sbin/ip ioam namespace add 123; fi) & (if [ $CLT_ENABLE = "1" ]; then /ioam-agent -i eth0; fi) & (/usr/local/bin/service /etc/config.yml)"
+    command: sh -c "${additionalCommands}(/sbin/ip -6 r d default) & (if [ $CLT_ENABLE = "1" ] || [ $IOAM_ONLY = "1" ]; then /sbin/ip ioam namespace add 123; fi) & (if [ $CLT_ENABLE = "1" ]; then /ioam-agent -i eth0; fi) & (/usr/local/bin/service /etc/config.yml)"
     restart: on-failure
+    privileged: true
     cap_add:
       - NET_ADMIN
+      - SYS_ADMIN
     environment:
       - SERVICE_NAME=${name}
       - IOAM_COLLECTOR=ioam-collector:7123

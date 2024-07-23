@@ -117,7 +117,7 @@ func myDialContext(ctx context.Context, network, addr string) (net.Conn, error) 
 		return nil, err
 	}
 
-	if !conf.enableCLT {
+	if !conf.enableCLT || conf.enableIOAM {
 		return conn, nil
 	}
 

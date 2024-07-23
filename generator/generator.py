@@ -5,7 +5,7 @@ Kubernetes based on an architecture defined in an yml file.
 
 import sys, time, networkx as nx, matplotlib.pyplot as plt
 
-from constants import ASCII_ART
+from constants import ASCII_ART, VERSION
 from utils import *
 import config_parser, architecture, compose_exporter, k8s_exporter
 
@@ -16,11 +16,11 @@ def gen_config_files():
         start = time.process_time_ns()
 
     print(ASCII_ART)
-    print("Micro-Services Topology Generator\n\n")
+    print(f"Micro-Services Topology Generator v{VERSION}\n\n")
 
     print("Checking command line arguments...")
     filename = check_arguments()
-    print_success(f"Got filename {filename}")
+    print_info(f"Got filename {filename}")
     print_success("Checked command line arguments.")
 
     print("\nParsing the configuration file...")
@@ -53,10 +53,8 @@ def gen_config_files():
 
     if is_measuring_time():
         end = time.process_time_ns()
-        print(end-start)
+        print(f"Generated configuration file(s) in {end-start} ns.")
 
 if __name__ == '__main__':
-    check_docker_engine_version()
-
     gen_config_files()
     sys.exit(0)

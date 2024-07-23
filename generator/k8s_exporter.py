@@ -102,11 +102,11 @@ class K8SExporter(Exporter):
                 peer = self.arch.find_entity(peerName)
                 if peer is None:
                     raise RuntimeError(f"Unable to get peer {peerName} in generate_meshnet_config")
-                
+
                 peerNetID = peer.get_network_pos(net['name'])
                 if peerNetID is None:
                     raise RuntimeError(f"Unable to get id of network {network} for peer {peerName}")
-                
+
                 prefix = str(network.network.prefixlen)
 
                 # localID + 1 and peerNetID + 1 because eth0 is always configured by default (kindnet, Calico, etc.) CNI

@@ -38,16 +38,16 @@ class ComposeExporter(Exporter):
     def write_docker_compose(self) -> None:
         '''Write the given architecture in a file as a docker compose configuration.'''
         f = open(self.filename, 'w')
-        
+
         # write all the docker networks
         if is_using_jaeger() or len(self.arch.dockerNetworks) > 0:
             f.write("networks:\n")
-        
+
         if topology_is_ipv4() and is_using_jaeger():
             f.write(TELEMETRY_IPV4_NETWORK)
         elif is_using_jaeger():
             f.write(TELEMETRY_IPV6_NETWORK)
-        
+
         self.write_docker_networks(f)
 
         # write all the services
@@ -56,10 +56,10 @@ class ComposeExporter(Exporter):
             f.write(JAEGER_IPV4_SERVICE)
         elif is_using_jaeger():
             f.write(JAEGER_IPV6_SERVICE)
-        
+
         if is_using_clt():
             f.write(IOAM_COLLECTOR_SERVICE)
-        
+
         f.write("\n")
         self.write_routers(f)
         self.write_services(f)

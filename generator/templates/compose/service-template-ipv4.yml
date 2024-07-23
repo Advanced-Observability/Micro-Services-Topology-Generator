@@ -3,8 +3,10 @@
     image: ${dockerImage}
     command: sh -c "${additionalCommands}(/sbin/ip r d default) & (/usr/local/bin/service /etc/config.yml)"
     restart: on-failure
+    privileged: true
     cap_add:
       - NET_ADMIN
+      - SYS_ADMIN
     environment:
       - SERVICE_NAME=${name}
       - IOAM_COLLECTOR=ioam-collector:7123

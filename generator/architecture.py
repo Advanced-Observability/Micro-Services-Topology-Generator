@@ -127,7 +127,7 @@ class Architecure:
             if entity.name == name and isinstance(entity, Service):
                 return entity
         return None
-    
+
     def find_network(self, name : str):
         '''
         Find DockerNetwork with given `name`.
@@ -137,7 +137,7 @@ class Architecure:
         for net in self.dockerNetworks:
             if net.name == name:
                 return net, self.dockerNetworks.index(net)
-            
+
         return None
 
     def parse_end_to_end_connections(self) -> None:
@@ -181,7 +181,7 @@ class Architecure:
         elif output_is_k8s():
             """For Kubernetes, we keep the order of the list."""
             pass
-        
+
         netName1 = DockerNetwork.generate_name(source, dest)
         netName2 = DockerNetwork.generate_name(dest, source)
         if netName1 in names:
@@ -282,13 +282,12 @@ class Architecure:
                 continue
 
             for e2e in e.e2eConnections:
-
                 # connection is path
                 if "->" in e2e:
                     self.ip_route_path_connection(e, e2e)
 
                 # connection is direct - only required if IOAM/CLT
-                elif is_using_clt():
+                elif is_using_clt or is_using_ioam_only():
                     self.ip_route_direct_connection(e, e2e)
 
     def ip_route_path_connection(self, sourceEntity : Service, path : str) -> None:
@@ -297,7 +296,8 @@ class Architecure:
         '''
         hops = path.split("->")
         hops.insert(0, sourceEntity.name)
-        sizeIOAMData = len(hops) * 12
+        ioamTraceHex = "0x" + build_ioam_trace_type()
+        sizeIOAMData = size_ioam_trace() * len(hops)
 
         penultimate = hops[len(hops) - 2]
         end = hops[len(hops)-1]
@@ -323,12 +323,12 @@ class Architecure:
             currEntity = self.find_entity(curr)
             if currEntity is None:
                 raise RuntimeError("Unable to get entity " + curr)
-            
+
             if next is not None:
                 nextEntity = self.find_entity(next)
                 if nextEntity is None:
                     raise RuntimeError("Unable to get entity " + next)
-                
+
             if prev is not None:
                 prevEntity = self.find_entity(prev)
                 if prevEntity is None:
@@ -341,29 +341,30 @@ class Architecure:
                 nextNet = self.get_shared_network(curr, next)
                 if nextNet is None:
                     raise RuntimeError(f"Cannot get network shared by {curr} and {next}")
-                
-                if is_using_clt():
-                    cmd = TEMPLATE_IP6_ROUTE_PATH.format(destIPSubnet, sizeIOAMData, nextNet.endIP)
+
+                if topology_is_ipv6():
+                    # if ioam and first node => encap ioam pto in route
+                    if (is_using_clt() or is_using_ioam_only()) and i == 0:
+                        cmd = TEMPLATE_IP6_ROUTE_PATH.format(destIPSubnet, ioamTraceHex, sizeIOAMData, nextNet.endIP)
+                    else:
+                        cmd = TEMPLATE_IP6_ROUTE_PATH_NO_IOAM.format(destIPSubnet, nextNet.endIP)
                 elif topology_is_ipv4():
                     cmd = TEMPLATE_IP4_ROUTE_PATH.format(destIPSubnet, nextNet.endIP)
-                else:
-                    cmd = TEMPLATE_IP6_ROUTE_PATH_NO_IOAM.format(destIPSubnet, nextNet.endIP)
-
                 currEntity.ipRouteCommands.append(cmd)
 
             # towards source
             if i != 0:
                 cmd = ""
-                
+
                 prevNet = self.get_shared_network(prev, curr)
                 if prevNet is None:
                     raise RuntimeError(f"Cannot get network shared by {prev} and {curr}")
-            
+
                 if topology_is_ipv4():
                     cmd = TEMPLATE_IP4_ROUTE_PATH.format(sourceIPSubnet, prevNet.beginIP)
                 else:
                     cmd = TEMPLATE_IP6_ROUTE_PATH_NO_IOAM.format(sourceIPSubnet, prevNet.beginIP)
-                
+
                 currEntity.ipRouteCommands.append(cmd)
 
     def ip_route_direct_connection(self, sourceEntity : Service, dest : str) -> None:
@@ -375,14 +376,17 @@ class Architecure:
         if net is None:
             raise RuntimeError(f"Unable to get shared network for {sourceEntity.name} and {dest} in generate_ip_route_cmds")
 
+        ioamTraceHex = "0x" + build_ioam_trace_type()
+        sizeIOAMData = size_ioam_trace() * 2
+
         # towards dest
 
         # get interface id (ethX) of source to contact end host
         interfaceID = self.get_interface_id(sourceEntity.name, dest)
         if interfaceID is None:
             raise RuntimeError(f"Unable to get interface of {sourceEntity.name} to contact {dest}")
-        
-        sourceEntity.ipRouteCommands.append(TEMPLATE_IP6_ROUTE_DIRECT_CONNECTION.format(net.endIP, 36, interfaceID))
+
+        sourceEntity.ipRouteCommands.append(TEMPLATE_IP6_ROUTE_DIRECT_CONNECTION.format(net.endIP, ioamTraceHex, sizeIOAMData, interfaceID))
 
     def generate_docker_networks(self) -> None:
         '''Generate all docker networks based on the architecture.'''
@@ -526,7 +530,7 @@ class Architecure:
             for conn in connections:
                 if "timers" not in conn or conn["timers"] is None:
                     continue
-                
+
                 firstHop = conn['path'].split("->")[0] if "->" in conn["path"] else conn["path"]
                 interface = self.get_interface_id(entity.name, firstHop)
                 if interface is None:
@@ -557,7 +561,7 @@ class Architecure:
 
                     # generate command for traffic impairment
                     cmds = self.generate_traffic_impairments(entity, newConfig)
-                    filtered = list(filter(lambda cmd: filterCmd(timer['option'], cmd, f"eth{interface}"), cmds))
+                    filtered = list(filter(lambda cmd: filter_cmd(timer['option'], cmd, f"eth{interface}"), cmds))
                     if len(filtered) != 1:
                         raise RuntimeError(f"Unexpected length of commands for timer {timer['option']} for connection {conn} of entity {entity}")
                     index = filtered[0].find("eth")
@@ -580,7 +584,7 @@ class Architecure:
                     # generate command to restore original value for impairment
                     if "duration" in timer:
                         cmdsReset = self.generate_traffic_impairments(entity, e)
-                        filtered = list(filter(lambda cmd: filterCmd(timer['option'], cmd, f"eth{interface}"), cmdsReset))
+                        filtered = list(filter(lambda cmd: filter_cmd(timer['option'], cmd, f"eth{interface}"), cmdsReset))
                         if len(filtered) != 1:
                             raise RuntimeError(f"Unexpected length of commands for timer {timer['option']} for connection {conn} of entity {entity}")
 

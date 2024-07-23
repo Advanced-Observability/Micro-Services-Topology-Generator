@@ -226,6 +226,7 @@ def check_connection_specifications(name : str, entity, connections : list) -> b
                         elif timer["option"] in ["loss", "corrupt", "duplicate", "reorder"] and not match_tc_percent(timer["newValue"]):
                             print_error(f"Option {timer['option']} for the timer {timer} of connection {connection} for {entity} must be specified as a percentage between 0% and 100%")
                             valid = False
+
     return valid
 
 def check_connectivity(config) -> bool:
@@ -236,12 +237,7 @@ def check_connectivity(config) -> bool:
 
     valid = True
     for entity in config:
-
-        # extract connections
-        connections = []
-        if "connections" in entity and config[entity]["connections"] is not None:
-            for connection in config[entity]["connections"]:
-                connections.append(connection['path'])
+        connections = [conn["path"] for conn in extract_connections(config[entity])]
 
         # verify each connection
         for connection in connections:
@@ -263,7 +259,7 @@ def check_connectivity(config) -> bool:
                     if hop < len(hops) - 1:
                         conns = [conn["path"] for conn in config[hops[hop]]['connections']]
                         if hops[hop+1] not in conns:
-                            print_error("Intermediary hop {} of connection {} for {} should specify {}".format(hops[hop], connection, entity, hops[hop+1]))
+                            print_error("Intermediary hop {} of connection {} for {} should specify one of {}".format(hops[hop], connection, entity, conns))
                             valid = False
 
                 # check that last node in path is a service
@@ -284,6 +280,7 @@ def check_connectivity(config) -> bool:
                 if config[entity]["type"] == "service" and config[connection]["type"] != "service":
                     print_error(f"Destination of connection {connection} for {entity} is not a service")
                     valid = False
+
     return valid
 
 def check_no_cycles(config) -> bool:
@@ -340,17 +337,7 @@ def build_directed_graph(config) -> nx.DiGraph:
 
     # add edges in graph
     for entity in config:
-        connections = []
-
-        if config[entity]["type"] == "router":
-            if "connections" in config[entity]:
-                connections.extend(config[entity]["connections"])
-        elif config[entity]["type"] == "service":
-            if config[entity]["endpoints"] is None:
-                continue
-            for endpoint in config[entity]["endpoints"]:
-                if "connections" in endpoint:
-                    connections.extend(endpoint["connections"])
+        connections = extract_connections(config[entity])
 
         if connections is not None:
             for connection in connections:

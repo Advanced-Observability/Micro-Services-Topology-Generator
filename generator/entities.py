@@ -80,13 +80,13 @@ class Entity:
         self.additionalCommands = []
 
     def __str__(self) -> str:
-        return f"Entity: {self.name} - ioamID: {self.ioamID} - kubernetes IP: {self.kubernetesIP} - networks: {self.attachedNetworks} - depends-on: {self.depends_on} - iproute configuration: {self.iprouteToStr(False)} - additional commands: {self.commandsToStr(False)}"
-    
+        return f"Entity: {self.name} - ioamID: {self.ioamID} - kubernetes IP: {self.kubernetesIP} - networks: {self.attachedNetworks} - depends-on: {self.depends_on} - iproute configuration: {self.iproute_to_str(False)} - additional commands: {self.commands_to_str(False)}"
+
     def pretty(self) -> str:
         """Indented string describing the object"""
-        return f"Entity: {self.name}\n\t\t- ioamID: {self.ioamID}\n\t\t- kubernetes IP: {self.kubernetesIP}\n\t\t- networks: {self.attachedNetworks}\n\t\t- depends-on: {self.depends_on}\n\t\t- iproute configuration:\n{self.iprouteToStr(True)}\n\t\t- additional commands:{self.commandsToStr(True)}"
+        return f"Entity: {self.name}\n\t\t- ioamID: {self.ioamID}\n\t\t- kubernetes IP: {self.kubernetesIP}\n\t\t- networks: {self.attachedNetworks}\n\t\t- depends-on: {self.depends_on}\n\t\t- iproute configuration:\n{self.iproute_to_str(True)}\n\t\t- additional commands:{self.commands_to_str(True)}"
 
-    def iprouteToStr(self, pretty: bool = False) -> str:
+    def iproute_to_str(self, pretty: bool = False) -> str:
         """Convert ip route commands to str."""
         commandsStr = ""
         for cmd in self.ipRouteCommands:
@@ -95,8 +95,8 @@ class Entity:
             else:
                 commandsStr+=("," + str(cmd))
         return commandsStr
-    
-    def commandsToStr(self, pretty: bool = False) -> str:
+
+    def commands_to_str(self, pretty: bool = False) -> str:
         """Convert commands to str."""
         commandsStr = ""
         for cmd in self.additionalCommands:
@@ -105,7 +105,7 @@ class Entity:
             else:
                 commandsStr+=("," + str(cmd))
         return commandsStr
-    
+
     def get_network_pos(self, name : str) -> int | None:
         """
         Get id of attached network with given `name`.
@@ -115,7 +115,7 @@ class Entity:
         for net in self.attachedNetworks:
             if net["name"] == name:
                 return self.attachedNetworks.index(net)
-            
+
         return None
 
 class Service(Entity):
@@ -138,12 +138,12 @@ class Service(Entity):
         self.extraHosts = set()
 
     def __str__(self) -> str:
-        return f"Service: {self.name} - port: {self.port} - e2e connections: {self.e2eToStr()} - {super().__str__()}"
+        return f"Service: {self.name} - port: {self.port} - e2e connections: {self.e2e_to_str()} - {super().__str__()}"
 
     def pretty(self) -> str:
-        return f"Service: {self.name}\n\t- port: {self.port}\n\t- e2e connections: {self.e2eToStr()}\n\t- extra hosts: {self.extraHosts}\n\t- {super().pretty()}"
+        return f"Service: {self.name}\n\t- port: {self.port}\n\t- e2e connections: {self.e2e_to_str()}\n\t- extra hosts: {self.extraHosts}\n\t- {super().pretty()}"
 
-    def e2eToStr(self) -> str:
+    def e2e_to_str(self) -> str:
         """Convert end-to-end connections to string."""
         e2e = ""
         for e2econn in self.e2eConnections:
@@ -159,6 +159,8 @@ class Service(Entity):
             additionalCommands+=(f"({cmd}) & ")
         for cmd in self.additionalCommands:
             additionalCommands+=(f"({cmd}) & ")
+        if is_using_ioam_only() or is_using_clt():
+            additionalCommands+=(f"(sh set_interfaces.sh) & ")
 
         image = "mstg_service" if not is_using_clt() else "mstg_service_clt"
 
@@ -166,7 +168,8 @@ class Service(Entity):
         mappings = dict(
             name=self.name, ioamID=self.ioamID,
             additionalCommands=additionalCommands,
-            CLT_ENABLE=os.environ[CLT_ENABLE_ENV], dockerImage=image, JAEGER_ENABLE=os.environ[JAEGER_ENABLE_ENV],
+            CLT_ENABLE=os.environ[CLT_ENABLE_ENV], IOAM_ONLY=os.environ[IOAM_ENABLE_ENV],
+            dockerImage=image, JAEGER_ENABLE=os.environ[JAEGER_ENABLE_ENV],
             HTTP_VER=os.environ[HTTP_VER_ENV], IOAM_ENABLE=os.environ[IOAM_ENABLE_ENV]
         )
         if topology_is_ipv4():
@@ -183,14 +186,10 @@ class Service(Entity):
             file.write(f"      - CERT_FILE={PATH_CERTIFICATE}\n")
             file.write(f"      - KEY_FILE={PATH_KEY_FILE}\n")
 
-        # sysctl configuration - +1 due to telemetry network
-        if is_using_clt():
+        # sysctl configuration
+        if is_using_clt() or is_using_ioam_only():
             file.write("    sysctls:")
             file.write(Template(COMPOSE_SYSCTL_DEFAULTS).substitute(dict(ioamID=self.ioamID)))
-            if generate_sysctls():
-                for i in range(len(self.attachedNetworks) + 1):
-                    file.write(f"      - net.ipv6.conf.eth{i}.ioam6_enabled=1\n")
-                    file.write(f"      - net.ipv6.conf.eth{i}.ioam6_id={self.ioamID}\n")
 
         # depends_on
         alreadyWrote = False
@@ -226,7 +225,7 @@ class Service(Entity):
             file.write("    extra_hosts:\n")
             for host in self.extraHosts:
                 file.write("      - \"{}:{}\"\n".format(host[0], host[1]))
-    
+
     def export_k8s(self):
         """Export the service to Kubernetes configuration files."""
 
@@ -245,13 +244,8 @@ class Service(Entity):
             onelineCmd+=(f"(sleep 20 && {cmd}) & ")
         for cmd in self.additionalCommands:
             onelineCmd+=(f"(sleep 20 && {cmd}) & ")
-        if generate_sysctls():
-            for i in range(len(self.attachedNetworks)):
-                # +1 because eth0 is configured by base CNI (kindnet, calico, etc)
-                cmd = Template(CMD_SYSCTL_IOAM_ENABLE).substitute(i=i+1)
-                onelineCmd+=f"(sleep 20 && {cmd}) & "
-                cmd = Template(CMD_SYSCTL_IOAM_ID).substitute(i=i+1, ioamID=self.ioamID)
-                onelineCmd+=f"(sleep 20 && {cmd}) & "
+        if is_using_ioam_only() or is_using_clt():
+            onelineCmd+=(f"(sleep 20 && sh set_interfaces.sh) & ")
         onelineCmd+=("(/usr/local/bin/service /etc/config.yml)")
         # add ioam agent is using clt
         if is_using_clt():
@@ -261,7 +255,7 @@ class Service(Entity):
         - -c
         - {onelineCmd}
 """
-        
+
         image = "mstg_service" if not is_using_clt() else "mstg_service_clt"
 
         # pod configuration
@@ -279,18 +273,15 @@ class Service(Entity):
             podConfig["KEY_FILE"] = PATH_KEY_FILE
 
         pod = TEMPLATE_K8S_POD.substitute(podConfig)
-        
+
         # output file
         f = open(f"{K8S_EXPORT_FOLDER}/{self.name}_pod.yaml", "w")
         f.write(pod)
 
         # write sysctls
-        if is_using_clt():
+        if is_using_clt() or is_using_ioam_only():
             f.write(Template(K8S_SYSCTL_DEFAULTS).substitute(dict(ioamID=self.ioamID)))
-            if generate_sysctls():
-                f.write(Template(K8S_SYSCTL_IOAM_ENABLE).substitute(dict(i=0)))
-                f.write(Template(K8S_SYSCTL_IOAM_ID).substitute(dict(i=0, ioamID=self.ioamID)))
-        
+
         # write extra hosts
         if len(self.extraHosts) > 0:
             f.write("  hostAliases:")
@@ -299,7 +290,7 @@ class Service(Entity):
     - ip: \"{host[1]}\"
       hostnames:
       - \"{host[0]}\"""")
-        
+
         f.close()
 
     def export_k8s_service(self):
@@ -334,13 +325,16 @@ class Router(Entity):
             additionalCommands+=(f"({cmd}) & ")
         for cmd in self.additionalCommands:
             additionalCommands+=(f"({cmd}) & ")
+        if is_using_ioam_only() or is_using_clt():
+            additionalCommands+=(f"(sh set_interfaces.sh) & ")
 
         image = "mstg_router" if not is_using_clt() else "mstg_router_clt"
 
         # write template
         mappings = dict(
             name=self.name, ioamID=self.ioamID, additionalCommands=additionalCommands,
-            CLT_ENABLE=os.environ[CLT_ENABLE_ENV], dockerImage=image
+            CLT_ENABLE=os.environ[CLT_ENABLE_ENV], IOAM_ONLY=os.environ[IOAM_ENABLE_ENV],
+            dockerImage=image
         )
         if topology_is_ipv4():
             file.write(ROUTER_IPV4_TEMPLATE.substitute(mappings))
@@ -348,12 +342,8 @@ class Router(Entity):
             file.write(ROUTER_IPV6_TEMPLATE.substitute(mappings))
 
         # sysctl configuration
-        if is_using_clt():
+        if is_using_clt() or is_using_ioam_only():
             file.write(Template(COMPOSE_SYSCTL_DEFAULTS).substitute(dict(ioamID=self.ioamID)))
-            if generate_sysctls():
-                for i in range(len(self.attachedNetworks)):
-                    file.write(f"      - net.ipv6.conf.eth{i}.ioam6_enabled=1\n")
-                    file.write(f"      - net.ipv6.conf.eth{i}.ioam6_id={self.ioamID}\n")
 
         # depends_on
         if len(self.depends_on) > 0:
@@ -389,13 +379,8 @@ class Router(Entity):
             onelineCmd+=(f"(sleep 20 && {cmd}) & ")
         for cmd in self.additionalCommands:
             onelineCmd+=(f"(sleep 20 && {cmd}) & ")
-        if generate_sysctls():
-            for i in range(len(self.attachedNetworks)):
-                # +1 because eth0 is configured by base CNI (kindnet, calico, etc)
-                cmd = Template(CMD_SYSCTL_IOAM_ENABLE).substitute(i=i+1)
-                onelineCmd+=f"(sleep 20 && {cmd}) & "
-                cmd = Template(CMD_SYSCTL_IOAM_ID).substitute(i=i+1, ioamID=self.ioamID)
-                onelineCmd+=f"(sleep 20 && {cmd}) & "
+        if is_using_ioam_only() or is_using_clt():
+            onelineCmd+=(f"(sleep 20 && sh set_interfaces.sh) & ")
 
         onelineCmd+=("(tail -f /dev/null)")
         cmd=f"""
@@ -421,15 +406,11 @@ class Router(Entity):
         f.write(pod)
 
         # write sysctls
-        if is_using_clt():
+        if is_using_clt() or is_using_ioam_only():
             f.write(Template(K8S_SYSCTL_DEFAULTS).substitute(dict(ioamID=self.ioamID)))
-            if generate_sysctls():
-                # eth0 is always configured by base CNI (kindnet, calico, etc)
-                f.write(Template(K8S_SYSCTL_IOAM_ENABLE).substitute(dict(i=0)))
-                f.write(Template(K8S_SYSCTL_IOAM_ID).substitute(dict(i=0, ioamID=self.ioamID)))
 
         f.close()
-    
+
     def export_k8s_service(self, port : int):
         """Export the router to a Kubernetes service using the given `port`."""
 

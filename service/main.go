@@ -29,12 +29,11 @@ func main() {
 
 // Configure the service
 func configureService() {
-	// Parse CLI arguments
-	path := parseCliArguments()
+	parseCliArguments()
 
 	// Read config
 	var err error
-	conf.services, err = readConfig(path)
+	conf.services, err = readConfig(conf.configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -103,5 +102,4 @@ func startService() {
 
 	// When Shutdown is called, ListenAndServe immediately returns ErrServerClosed.
 	srv.Shutdown(context.Background())
-	return
 }

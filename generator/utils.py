@@ -3,7 +3,8 @@ Utilities for the generator of docker compose and
 kubernetes configuration files.
 '''
 
-import sys, os, ipaddress, re, argparse, subprocess
+import sys, os, ipaddress, re, argparse, subprocess, bitarray
+import bitarray.util
 
 import kubernetes
 from constants import *
@@ -25,7 +26,7 @@ def check_arguments() -> str:
     # debug flags
     parser.add_argument("--time", action='store_true', help="Show the time in nanoseconds to generate the architecture")
     parser.add_argument("--debug", action='store_true', help="Show internal state")
-    
+
     args = parser.parse_args()
 
     if args.ip == 4:
@@ -34,7 +35,7 @@ def check_arguments() -> str:
     elif args.ip == 6:
         print_info("Generating architecture with IPv6")
         os.environ[IP_VERSION_ENV] = "6"
-    
+
     if args.jaeger:
         print_info("Generating architecture with Jaeger")
         os.environ[JAEGER_ENABLE_ENV] = "True"
@@ -43,15 +44,14 @@ def check_arguments() -> str:
         os.environ[JAEGER_ENABLE_ENV] = "False"
 
     if args.ioam:
-        print_info("Generating architecture with IOAM")
+        if args.ip == 4:
+            print_error("IOAM requires IPv6!")
+            sys.exit(1)
+        print_info("Generating architecture with IOAM (without CLT)")
         os.environ[IOAM_ENABLE_ENV] = "1"
-        # counter intuitive - used to generate with ioam
-        # clt will not be enable inside the microservices
-        os.environ[JAEGER_ENABLE_ENV] = "1"
-        os.environ[CLT_ENABLE_ENV] = "1"
     else:
         os.environ[IOAM_ENABLE_ENV] = "0"
-    
+
     if args.clt:
         print_info("Generating architecture with CLT")
         os.environ[CLT_ENABLE_ENV] = "1"
@@ -94,43 +94,6 @@ def check_arguments() -> str:
 
     return args.config
 
-def check_docker_engine_version():
-    """
-    Check version of Docker Engine running on host
-    due to issues with sysctls and Docker Engine == 26.0.0 or >= 27.0.0.
-    """
-
-    versionCheck = subprocess.run(DE_GET_VERSION, shell=True, stdout=subprocess.PIPE)
-
-    if versionCheck.returncode != 0:
-        raise RuntimeError("Could not get version of Docker Engine")
-
-    version = versionCheck.stdout.decode("utf-8").strip()
-    vNumber = re.search("\d+.\d+.\d+", version).group(0)
-
-    if len(vNumber.split(".")) != 3:
-        raise RuntimeError("Unexpected format of Docker Engine version number")
-
-    major, minor, revision = [int(i) for i in vNumber.split(".")]
-
-    # versions 26.0.0 and > 27.0.0 are problematic
-    if major >= 27:
-        os.environ[DE_ENV_SYSCTL] = "0"
-    elif major == 26 and minor == 0 and revision == 0:
-        print_warning("Docker Engine 26 introduces a modification that prevents configuration of interfaces during container creation with sysctl.")
-        print_warning("See issue https://github.com/moby/moby/issues/47619")
-        print_warning("See issue https://github.com/moby/moby/issues/47639")
-        print_warning("Fixed in commit https://github.com/moby/moby/commit/fc14d8f9329acd938e22afd0ed4edcfa71dfc40a")
-        print_warning("Details in merge request https://github.com/moby/moby/pull/47646")
-        print_warning("This may lead to unexpected behavior!")
-        print_warning("It has been patched in v26.0.1 of the Docker Engine.")
-        print_warning("You should consider updating to v26.0.1 or a newer version.")
-        os.environ[DE_ENV_SYSCTL] = "0"
-    else:
-        os.environ[DE_ENV_SYSCTL] = "1"
-
-    return
-
 def output_is_compose() -> bool:
     """True if output is Docker Compose."""
     return os.environ[OUTPUT_FORMAT_ENV] == COMPOSE_OUT_ENV
@@ -146,6 +109,10 @@ def debug_mode_is_on() -> bool:
 def is_measuring_time() -> bool:
     """True if we are measuring the time."""
     return "--time" in sys.argv
+
+def is_using_ioam_only() -> bool:
+    """True if we are using IOAM without CLT."""
+    return os.environ[IOAM_ENABLE_ENV] == "1"
 
 def is_using_clt() -> bool:
     """True if the architecture is using CLT."""
@@ -170,10 +137,6 @@ def topology_is_http() -> bool:
 def topology_is_https() -> bool:
     """True if the topology is using HTTPS."""
     return os.environ[HTTP_VER_ENV] == "https"
-
-def generate_sysctls() -> bool:
-    """True if need to generate interface dependant sysctls."""
-    return os.environ[DE_ENV_SYSCTL] == "1"
 
 def convert_network_id_to_ip6_network(prefix : int) -> ipaddress.IPv6Network:
     '''
@@ -248,7 +211,7 @@ def match_tc_time(toCheck: str) -> bool:
 
     return True if re.search(TC_TIME_REGEX, toCheck) is not None else False
 
-def filterCmd(option : str, cmd : str, interface : str) -> bool:
+def filter_cmd(option : str, cmd : str, interface : str) -> bool:
     '''Check if the given `cmd` can be used to modify `option` on given `interface`.'''
 
     if option == "mtu" and "mtu" in cmd and interface in cmd:
@@ -258,6 +221,80 @@ def filterCmd(option : str, cmd : str, interface : str) -> bool:
     elif option not in ["mtu", "buffer_size"] and "qdisc" in cmd and interface in cmd:
             return True
     return False
+
+def build_ioam_trace_type() -> str:
+    """Generate ioam trace type as hex based on configuration."""
+    traceType = bitarray.bitarray(24)
+
+    if IOAM_BIT0:
+        traceType[0] = 1
+
+    if IOAM_BIT1:
+        traceType[1] = 1
+
+    if IOAM_BIT2:
+        traceType[2] = 1
+
+    if IOAM_BIT3:
+        traceType[3] = 1
+
+    if IOAM_BIT5:
+        traceType[5] = 1
+
+    if IOAM_BIT6:
+        traceType[6] = 1
+
+    if IOAM_BIT8:
+        traceType[8] = 1
+
+    if IOAM_BIT9:
+        traceType[9] = 1
+
+    if IOAM_BIT10:
+        traceType[10] = 1
+
+    if IOAM_BIT22:
+        traceType[22] = 1
+
+    return bitarray.util.ba2hex(traceType)
+
+def size_ioam_trace() -> int:
+    """Calculate size of ioam trace based on ioam trace type for a single node."""
+
+    size = 0
+
+    if IOAM_BIT0:
+        size+=4
+
+    if IOAM_BIT1:
+        size+=4
+
+    if IOAM_BIT2:
+        size+=4
+
+    if IOAM_BIT3:
+        size+=4
+
+    if IOAM_BIT5:
+        size+=4
+
+    if IOAM_BIT6:
+        size+=4
+
+    if IOAM_BIT8:
+       size+=8
+
+    if IOAM_BIT9:
+        size+=8
+
+    if IOAM_BIT10:
+        size+=8
+
+    if IOAM_BIT22:
+        # size of OSS is not included
+        pass
+
+    return size
 
 def print_success(text: str):
     print(f"\033[92m{text}\033[0m")

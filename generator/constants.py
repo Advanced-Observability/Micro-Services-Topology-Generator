@@ -6,7 +6,32 @@ import os
 from string import Template
 from pathlib import Path
 
+VERSION = "0.0.2"
+
 DEFAULT_CONFIG_FILE="./config.yml"
+
+# ------------------------------------ IOAM TRACE TYPE CONFIGURATION ------------------------------------
+
+# hop limit + node id
+IOAM_BIT0 = True
+# ingress and egress id
+IOAM_BIT1 = False
+# timestamp
+IOAM_BIT2 = False
+# timestamp fraction
+IOAM_BIT3 = False
+# namespace specific
+IOAM_BIT5 = False
+# queue depth
+IOAM_BIT6 = False
+# hop limit + node id wide
+IOAM_BIT8 = False
+# ingress and egress id wide
+IOAM_BIT9 = False
+# namespace specific wide
+IOAM_BIT10 = False
+# opaque state
+IOAM_BIT22 = False
 
 # --------------------------------------- ENV. VARIABLES -----------------------------------------------
 
@@ -27,7 +52,6 @@ IOAM_ENABLE_ENV = "IOAM_OUT_ENV"
 NETWORK_NAME = "network_{}_{}"
 
 # compose
-
 TEMPLATE_COMPOSE_FOLDER = os.path.join(Path(__file__).parent, "templates/compose")
 IOAM_COLLECTOR_SERVICE = open(os.path.join(TEMPLATE_COMPOSE_FOLDER, "ioam-collector-ipv6.yml")).read()
 ## ipv4
@@ -87,8 +111,8 @@ CMD_SYSCTL_IOAM_ENABLE = """sysctl -q -w net.ipv6.conf.eth${i}.ioam6_enabled=1""
 
 # --------------------------------------- IP ROUTE COMMANDS FOR IPv6 -----------------------------------------------
 
-TEMPLATE_IP6_ROUTE_DIRECT_CONNECTION = "/sbin/ip -6 r a {} encap ioam6 trace prealloc type 0xc20000 ns 123 size {} dev eth{}"
-TEMPLATE_IP6_ROUTE_PATH = "/sbin/ip -6 r a {} encap ioam6 trace prealloc type 0xc20000 ns 123 size {} via {}"
+TEMPLATE_IP6_ROUTE_DIRECT_CONNECTION = "/sbin/ip -6 r a {} encap ioam6 trace prealloc type {} ns 123 size {} dev eth{}"
+TEMPLATE_IP6_ROUTE_PATH = "/sbin/ip -6 r a {} encap ioam6 trace prealloc type {} ns 123 size {} via {}"
 TEMPLATE_IP6_ROUTE_PATH_NO_IOAM = "/sbin/ip -6 r a {} via {}"
 
 # --------------------------------------- IP ROUTE COMMANDS FOR IPv4 -----------------------------------------------
@@ -147,7 +171,6 @@ PATH_KEY_FILE = "/server.key"
 # --------------------------------------- DOCKER ENGINE -----------------------------------------------
 
 DE_GET_VERSION = "docker --version"
-DE_ENV_SYSCTL = "DE_ENV_SYSCTL"
 
 # --------------------------------------- KUBERNETES -----------------------------------------------
 
