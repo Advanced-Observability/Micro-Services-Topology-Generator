@@ -1,5 +1,6 @@
   ioam-collector:
     container_name: ioam-collector
+    hostname: ioam-collector
     image: mstg_ioam_collector
     environment:
       - OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces

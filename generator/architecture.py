@@ -287,7 +287,7 @@ class Architecure:
                     self.ip_route_path_connection(e, e2e)
 
                 # connection is direct - only required if IOAM/CLT
-                elif is_using_clt or is_using_ioam_only():
+                elif is_using_clt() or is_using_ioam_only():
                     self.ip_route_direct_connection(e, e2e)
 
     def ip_route_path_connection(self, sourceEntity : Service, path : str) -> None:
@@ -350,7 +350,7 @@ class Architecure:
                         cmd = TEMPLATE_IP6_ROUTE_PATH_NO_IOAM.format(destIPSubnet, nextNet.endIP)
                 elif topology_is_ipv4():
                     cmd = TEMPLATE_IP4_ROUTE_PATH.format(destIPSubnet, nextNet.endIP)
-                currEntity.ipRouteCommands.append(cmd)
+                currEntity.ipRouteCommands.add(cmd)
 
             # towards source
             if i != 0:
@@ -365,7 +365,7 @@ class Architecure:
                 else:
                     cmd = TEMPLATE_IP6_ROUTE_PATH_NO_IOAM.format(sourceIPSubnet, prevNet.beginIP)
 
-                currEntity.ipRouteCommands.append(cmd)
+                currEntity.ipRouteCommands.add(cmd)
 
     def ip_route_direct_connection(self, sourceEntity : Service, dest : str) -> None:
         '''
@@ -386,7 +386,7 @@ class Architecure:
         if interfaceID is None:
             raise RuntimeError(f"Unable to get interface of {sourceEntity.name} to contact {dest}")
 
-        sourceEntity.ipRouteCommands.append(TEMPLATE_IP6_ROUTE_DIRECT_CONNECTION.format(net.endIP, ioamTraceHex, sizeIOAMData, interfaceID))
+        sourceEntity.ipRouteCommands.add(TEMPLATE_IP6_ROUTE_DIRECT_CONNECTION.format(net.endIP, ioamTraceHex, sizeIOAMData, interfaceID))
 
     def generate_docker_networks(self) -> None:
         '''Generate all docker networks based on the architecture.'''

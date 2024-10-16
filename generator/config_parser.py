@@ -163,69 +163,69 @@ def check_connection_specifications(name : str, entity, connections : list) -> b
     valid = True
 
     for connection in connections:
-            if entity["type"] == "service":
-                mandatoryList = CONNECTION_SERVICE_MANDATORY_FIELDS
-            else:
-                mandatoryList = CONNECTION_ROUTER_MANDATORY_FIELDS
+        if entity["type"] == "service":
+            mandatoryList = CONNECTION_SERVICE_MANDATORY_FIELDS
+        else:
+            mandatoryList = CONNECTION_ROUTER_MANDATORY_FIELDS
 
-            for mandatory in mandatoryList:
-                if mandatory not in connection:
-                    print_error(f"Service {name} missing field {mandatory} for connection {connection}")
-                    valid = False
+        for mandatory in mandatoryList:
+            if mandatory not in connection:
+                print_error(f"Service {name} missing field {mandatory} for connection {connection}")
+                valid = False
 
-            for field in connection:
-                if field not in CONNECTION_OPTIONAL_FIELDS and field not in CONNECTION_SERVICE_MANDATORY_FIELDS:
-                    print_error(f"Service {name} has unexpected field {field} for connection {connection}")
-                    valid = False
+        for field in connection:
+            if field not in CONNECTION_OPTIONAL_FIELDS and field not in CONNECTION_SERVICE_MANDATORY_FIELDS:
+                print_error(f"Service {name} has unexpected field {field} for connection {connection}")
+                valid = False
 
-                # Check all impairments
-                if field == "mtu" and type(connection[field]) is not int:
-                    print_error(f"MTU option for connection {connection} of {entity} must be an int")
-                    valid = False
-                elif field == "buffer_size" and type(connection[field]) is not int:
-                    print_error(f"Buffer size option for connection {connection} of {entity} must be an int")
-                    valid = False
-                elif field == "rate" and not match_tc_rate(connection[field]):
-                    print_error(f"Rate option for connection {connection} of {entity} must be a rate")
-                    valid = False
-                elif field in ["delay", "jitter"] and not match_tc_time(connection[field]):
-                    print_error(f"Option {field} for connection {connection} of {entity} must be a time")
-                    valid = False
-                elif field in ["loss", "corrupt", "duplicate", "reorder"] and not match_tc_percent:
-                    print_error(f"Option {field} for connection {connection} of {entity} must be a percentage between 0% and 100%")
-                    valid = False
+            # Check all impairments
+            if field == "mtu" and type(connection[field]) is not int:
+                print_error(f"MTU option for connection {connection} of {entity} must be an int")
+                valid = False
+            elif field == "buffer_size" and type(connection[field]) is not int:
+                print_error(f"Buffer size option for connection {connection} of {entity} must be an int")
+                valid = False
+            elif field == "rate" and not match_tc_rate(connection[field]):
+                print_error(f"Rate option for connection {connection} of {entity} must be a rate")
+                valid = False
+            elif field in ["delay", "jitter"] and not match_tc_time(connection[field]):
+                print_error(f"Option {field} for connection {connection} of {entity} must be a time")
+                valid = False
+            elif field in ["loss", "corrupt", "duplicate", "reorder"] and not match_tc_percent:
+                print_error(f"Option {field} for connection {connection} of {entity} must be a percentage between 0% and 100%")
+                valid = False
 
-                # check timers if any
-                if field == "timers" and connection["timers"] is not None:
-                    for timer in connection["timers"]:
-                        # check if it has all fields
-                        for expectedField in TIMER_EXPECTED_FIELDS:
-                            if expectedField not in timer:
-                                print_error(f"Missing field {expectedField} for timer {timer} for connection {connection} of {entity}")
+            # check timers if any
+            if field == "timers" and connection["timers"] is not None:
+                for timer in connection["timers"]:
+                    # check if it has all fields
+                    for expectedField in TIMER_EXPECTED_FIELDS:
+                        if expectedField not in timer:
+                            print_error(f"Missing field {expectedField} for timer {timer} for connection {connection} of {entity}")
+                            valid = False
+
+                        if expectedField == "option" and timer[expectedField] not in CONNECTION_IMPAIRMENTS:
+                            print_error(f"Specified option {timer[expectedField]} for timer {timer} of connection {connection} for {entity} is not an impairment")
+                            valid = False
+
+                        if expectedField == "start" or expectedField == "duration":
+                            if re.search(TIMER_TIME_REGEX, str(timer[expectedField])) is None:
+                                print_error(f"Start must be specified as an integer/float amount of seconds for timer {timer} of connection {connection} for {entity}")
                                 valid = False
 
-                            if expectedField == "option" and timer[expectedField] not in CONNECTION_IMPAIRMENTS:
-                                print_error(f"Specified option {timer[expectedField]} for timer {timer} of connection {connection} for {entity} is not an impairment")
-                                valid = False
-
-                            if expectedField == "start" or expectedField == "duration":
-                                if re.search(TIMER_TIME_REGEX, str(timer[expectedField])) is None:
-                                    print_error(f"Start must be specified as an integer/float amount of seconds for timer {timer} of connection {connection} for {entity}")
-                                    valid = False
-
-                        # check given values
-                        if timer["option"] in ["mtu", "buffer_size"] and type(timer["newValue"]) is not int:
-                            print_error(f"Option {timer['option']} for timer {timer} of connection {connection} for {entity} must be specified as int")
-                            valid = False
-                        elif timer["option"] == "rate" and not match_tc_rate(timer["newValue"]):
-                            print_error(f"Option {timer['option']} for timer {timer} of connection {connection} for {entity} must be specified as a rate")
-                            valid = False
-                        elif timer["option"] in ["delay", "jitter"] and not match_tc_time(timer["newValue"]):
-                            print_error(f"Option {timer['option']} for timer {timer} of connection {connection} for {entity} must be specified as time")
-                            valid = False
-                        elif timer["option"] in ["loss", "corrupt", "duplicate", "reorder"] and not match_tc_percent(timer["newValue"]):
-                            print_error(f"Option {timer['option']} for the timer {timer} of connection {connection} for {entity} must be specified as a percentage between 0% and 100%")
-                            valid = False
+                    # check given values
+                    if timer["option"] in ["mtu", "buffer_size"] and type(timer["newValue"]) is not int:
+                        print_error(f"Option {timer['option']} for timer {timer} of connection {connection} for {entity} must be specified as int")
+                        valid = False
+                    elif timer["option"] == "rate" and not match_tc_rate(timer["newValue"]):
+                        print_error(f"Option {timer['option']} for timer {timer} of connection {connection} for {entity} must be specified as a rate")
+                        valid = False
+                    elif timer["option"] in ["delay", "jitter"] and not match_tc_time(timer["newValue"]):
+                        print_error(f"Option {timer['option']} for timer {timer} of connection {connection} for {entity} must be specified as time")
+                        valid = False
+                    elif timer["option"] in ["loss", "corrupt", "duplicate", "reorder"] and not match_tc_percent(timer["newValue"]):
+                        print_error(f"Option {timer['option']} for the timer {timer} of connection {connection} for {entity} must be specified as a percentage between 0% and 100%")
+                        valid = False
 
     return valid
 

@@ -1,5 +1,6 @@
   ${name}:
     container_name: ${name}
+    hostname: ${name}
     image: ${dockerImage}
     command: sh -c "${additionalCommands}(if [ $CLT_ENABLE = "1" ] || [ $IOAM_ONLY = "1" ]; then /sbin/ip ioam namespace add 123; fi) & (ip -6 r d default) & (tail -f /dev/null)"
     restart: on-failure

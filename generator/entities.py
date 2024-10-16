@@ -75,7 +75,7 @@ class Entity:
         # used by docker compose to start the containers in the appropriate order
         self.depends_on = set()
         # ip route commands to configure the networking of the entity
-        self.ipRouteCommands = []
+        self.ipRouteCommands = set()
         # additional commands to configure the entity
         self.additionalCommands = []
 

@@ -1,7 +1,7 @@
 # Dockerfile for service with CLT
 
 # Build IOAM agent
-FROM alpine:3.19 as ioam-agent
+FROM alpine:3.19 AS ioam-agent
 
 # Install required packages
 RUN apk add protobuf-dev grpc-dev g++ --no-cache
@@ -15,7 +15,7 @@ RUN c++ ioam-agent.cpp ioam_api.grpc.pb.cc ioam_api.pb.cc `pkg-config --cflags -
 # --------------------------------------------------------------
 
 # Build modified ip route
-FROM alpine:3.19 as iproute
+FROM alpine:3.19 AS iproute
 
 # Install requried packages
 RUN apk add libmnl-dev bison flex wget make gcc musl-dev --no-cache
@@ -34,7 +34,7 @@ RUN apk del libmnl-dev bison flex wget make gcc musl-dev
 # --------------------------------------------------------------
 
 # Runner
-FROM alpine:3.19 as runner
+FROM alpine:3.19
 
 # Install required packages
 RUN apk add libmnl-dev protobuf-dev grpc-dev iproute2-tc iptables --no-cache
@@ -52,5 +52,8 @@ COPY ./config.yml /etc/
 # Copy key and certificate
 COPY server.key server.key
 COPY server.crt server.crt
+
+# Copy script to set interfaces
+COPY set_interfaces.sh set_interfaces.sh
 
 CMD ["echo", "start"]

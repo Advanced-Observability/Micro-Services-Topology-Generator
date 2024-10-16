@@ -3,7 +3,7 @@ Utilities for the generator of docker compose and
 kubernetes configuration files.
 '''
 
-import sys, os, ipaddress, re, argparse, subprocess, bitarray
+import sys, os, ipaddress, re, argparse, bitarray
 import bitarray.util
 
 import kubernetes
@@ -215,11 +215,11 @@ def filter_cmd(option : str, cmd : str, interface : str) -> bool:
     '''Check if the given `cmd` can be used to modify `option` on given `interface`.'''
 
     if option == "mtu" and "mtu" in cmd and interface in cmd:
-            return True
+        return True
     elif option == "buffer_size" and "txqueuelen" in cmd and interface in cmd:
-            return True
+        return True
     elif option not in ["mtu", "buffer_size"] and "qdisc" in cmd and interface in cmd:
-            return True
+        return True
     return False
 
 def build_ioam_trace_type() -> str:

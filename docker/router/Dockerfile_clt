@@ -15,4 +15,7 @@ RUN apk del bison flex wget make gcc musl-dev
 
 WORKDIR /
 
+# Copy script to set interfaces
+COPY set_interfaces.sh set_interfaces.sh
+
 CMD ["echo", "start"]
