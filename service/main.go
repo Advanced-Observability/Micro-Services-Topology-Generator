@@ -59,9 +59,8 @@ func startService() {
 
 	// Set up OpenTelemetry.
 	if conf.enableJaeger {
-		serviceVersion := VERSION
 		jaegerURL := "http://" + conf.jaegerHostname + ":14268/api/traces"
-		otelShutdown, err := setupOTelSDK(ctx, conf.ownName, serviceVersion, jaegerURL)
+		otelShutdown, err := setupOTelSDK(ctx, conf.ownName, jaegerURL)
 		if err != nil {
 			return
 		}

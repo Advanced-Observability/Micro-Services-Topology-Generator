@@ -3,68 +3,68 @@ Export the architecture to the configuration files
 for Docker Compose.
 '''
 
-from entities import *
-from architecture import Architecure
-from exporter import *
-from utils import *
+import entities
+import architecture
+import exporter
+import utils
+import constants
 
-class ComposeExporter(Exporter):
+
+class ComposeExporter(exporter.Exporter):
     """Export architecture to a Docker Compose configuration."""
 
-    def __init__(self, arch : Architecure, filename : str) -> None:
+    def __init__(self, arch: architecture.Architecure, filename: str) -> None:
         super().__init__(arch)
         self.filename = filename
 
     def write_docker_networks(self, file) -> None:
         '''Write all docker networks into the given `file` as in a docker compose file.'''
-        for network in self.arch.dockerNetworks:
+        for network in self.arch.docker_networks:
             network.export_compose(file)
             file.write("\n")
 
     def write_routers(self, file) -> None:
         '''Write all the routers into the given `file` as in a docker compose file.'''
         for entity in self.arch.entities:
-            if isinstance(entity, Router):
+            if isinstance(entity, entities.Router):
                 entity.export_compose(file)
                 file.write("\n")
 
     def write_services(self, file) -> None:
         '''Write all the services into the given `file` as in a docker compose file.'''
         for entity in self.arch.entities:
-            if isinstance(entity, Service):
+            if isinstance(entity, entities.Service):
                 entity.export_compose(file)
                 file.write("\n")
 
     def write_docker_compose(self) -> None:
         '''Write the given architecture in a file as a docker compose configuration.'''
-        f = open(self.filename, 'w')
+        with open(self.filename, 'w', encoding="utf-8") as f:
 
-        # write all the docker networks
-        if is_using_jaeger() or len(self.arch.dockerNetworks) > 0:
-            f.write("networks:\n")
+            # write all the docker networks
+            if utils.is_using_jaeger() or len(self.arch.docker_networks) > 0:
+                f.write("networks:\n")
 
-        if topology_is_ipv4() and is_using_jaeger():
-            f.write(TELEMETRY_IPV4_NETWORK)
-        elif is_using_jaeger():
-            f.write(TELEMETRY_IPV6_NETWORK)
+            if utils.topology_is_ipv4() and utils.is_using_jaeger():
+                f.write(constants.TELEMETRY_IPV4_NETWORK)
+            elif utils.is_using_jaeger():
+                f.write(constants.TELEMETRY_IPV6_NETWORK)
 
-        self.write_docker_networks(f)
+            self.write_docker_networks(f)
 
-        # write all the services
-        f.write("services:\n")
-        if topology_is_ipv4() and is_using_jaeger():
-            f.write(JAEGER_IPV4_SERVICE)
-        elif is_using_jaeger():
-            f.write(JAEGER_IPV6_SERVICE)
+            # write all the services
+            f.write("services:\n")
+            if utils.topology_is_ipv4() and utils.is_using_jaeger():
+                f.write(constants.JAEGER_IPV4_SERVICE)
+            elif utils.is_using_jaeger():
+                f.write(constants.JAEGER_IPV6_SERVICE)
 
-        if is_using_clt():
-            f.write(IOAM_COLLECTOR_SERVICE)
+            if utils.is_using_clt():
+                f.write(constants.IOAM_COLLECTOR_SERVICE)
 
-        f.write("\n")
-        self.write_routers(f)
-        self.write_services(f)
-
-        f.close()
+            f.write("\n")
+            self.write_routers(f)
+            self.write_services(f)
 
     def export(self):
         self.write_docker_compose()

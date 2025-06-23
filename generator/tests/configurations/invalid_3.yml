@@ -1,0 +1,3 @@
+frontend:
+  type: service
+  port: 80

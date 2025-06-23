@@ -1,0 +1,21 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      psize: 512
+      connections:
+        - path: db->shopping
+          url: /
+db:
+  type: service
+  port: 81
+  endpoints:
+    - entrypoint: /
+      psize: 128
+shopping:
+  type: service
+  port: 82
+  endpoints:
+    - entrypoint: /
+      psize: 128

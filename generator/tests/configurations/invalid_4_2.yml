@@ -1,0 +1,5 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - psize: 128

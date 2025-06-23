@@ -2,7 +2,7 @@
     container_name: ${name}
     hostname: ${name}
     image: ${dockerImage}
-    command: sh -c "${additionalCommands}(ip r d default) & (tail -f /dev/null)"
+    command: sh -c "${additional_cmds}(ip r d default) & (tail -f /dev/null)"
     restart: on-failure
     privileged: true
     cap_add:

@@ -4,6 +4,7 @@ Exporter of the architecture.
 
 from abc import ABC, abstractmethod
 
+
 class Exporter(ABC):
     """Abstract class representing an exporter."""
 
@@ -13,6 +14,5 @@ class Exporter(ABC):
         self.arch = arch
 
     @abstractmethod
-    def export():
+    def export(self):
         """Export the architecture."""
-        pass

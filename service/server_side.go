@@ -46,7 +46,7 @@ func getRootJaeger(writer http.ResponseWriter, r *http.Request) {
 	}
 
 	// making requests to other services sequentially
-	for i := 0; i < len(urls); i++ {
+	for i := range urls {
 		span.AddEvent("Contacting " + urls[i])
 		_, err := makeRequestTracePropagation(ctx, urls[i])
 		if err == nil {
@@ -93,7 +93,7 @@ func getRootNoJaeger(writer http.ResponseWriter, r *http.Request) {
 	}
 
 	// making requests to other services sequentially
-	for i := 0; i < len(urls); i++ {
+	for i := range urls {
 		_, err := makeRequest(urls[i])
 		if err != nil {
 			log.Println("Failed when contacting " + urls[i])
@@ -116,7 +116,7 @@ func newHTTPHandler() http.Handler {
 	mux := http.NewServeMux()
 
 	if conf.enableJaeger {
-		fmt.Println("Using server version with openTelemetry")
+		fmt.Println("Using server version with OpenTelemetry")
 		handleFunc := func(pattern string, handlerFunc func(http.ResponseWriter, *http.Request)) {
 			handler := otelhttp.WithRouteTag(pattern, http.HandlerFunc(handlerFunc))
 			mux.Handle(pattern, handler)
@@ -129,7 +129,7 @@ func newHTTPHandler() http.Handler {
 		handler := otelhttp.NewHandler(mux, "/")
 		return handler
 	} else {
-		fmt.Println("Using server version without openTelemetry")
+		fmt.Println("Using server version without OpenTelemetry")
 		mux.HandleFunc("/", getRootNoJaeger)
 		return mux
 	}

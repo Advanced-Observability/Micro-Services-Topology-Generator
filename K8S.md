@@ -8,7 +8,7 @@ We tested our solution on the following Kubernetes distributions:
 - [kind](https://kind.sigs.k8s.io/)
 
 > [!WARNING]
-> [Minikube](https://minikube.sigs.k8s.io/docs/) does **not** support IPv6 as of February 12th 2024.
+> [Minikube](https://minikube.sigs.k8s.io/docs/) does **NOT** support IPv6 as of February 12, 2024.
 See [official Q&A](https://minikube.sigs.k8s.io/docs/faq/#does-minikube-support-ipv6) and [GitHub issue](https://github.com/kubernetes/minikube/issues/8535).
 
 ## Cluster configurations
@@ -30,21 +30,19 @@ We are providing configuration files for [kind](https://kind.sigs.k8s.io/), whic
 It allows the creation of pod-to-pod direct connections across nodes using [VXLAN](https://en.wikipedia.org/wiki/Virtual_Extensible_LAN) and [veth](https://man7.org/linux/man-pages/man4/veth.4.html).
 
 > [!WARNING]
-> When it is used in an IPv6 only cluster, there is an **issue** with gRPC in the implementation of Meshnet-CNI.
-We have **patched** the implementation of Meshnet and opened a [pull request](https://github.com/networkop/meshnet-cni/pull/83) on the [official repository](https://github.com/networkop/meshnet-cni). In the meantime, the [patched version](https://github.com/maxgoffart/meshnet-cni/tree/fix_grpc_ipv6) **must** be used if you are using an IPv6 only cluster.
+> When it is used in an IPv6-only cluster, there is an **issue** with gRPC in the implementation of Meshnet-CNI.
+We have **patched** the implementation of Meshnet and opened a [pull request](https://github.com/networkop/meshnet-cni/pull/83) on the [official repository](https://github.com/networkop/meshnet-cni). In the meantime, the [patched version](https://github.com/maxgoffart/meshnet-cni/tree/fix_grpc_ipv6) **must** be used if you are using an IPv6-only cluster.
 
-
-Initialize and pull our Meshnet-CNI patch as a submodule.
-
-```bash
-git submodule init
-git submodule update
-```
-
-Once you have cloned the patched Meshnet-CNI and launched your cluster, you need to use the following command to install Meshnet-CNI on your cluster:
+Once you have cloned the patched Meshnet-CNI and launched your cluster, you need to use the following command, inside the Meshnet-CNI repository, to install Meshnet-CNI on your cluster:
 ```shell
 make docker
 make install
+kubectl apply -k manifests/base
+```
+
+Finally, you can deploy the architecture on Kubernetes:
+```shell
+make k8s_start
 ```
 
 You can check that Meshnet-CNI is running properly by using the following command and verifying that the column `READY` displays the correct number of nodes in your cluster:
@@ -63,7 +61,7 @@ The following limitations apply when deploying the topology to Kubernetes.
 
 ### Node port range
 
-We generate a Kubernetes service, of type [NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport), for every entity in the topology.
+We generate a Kubernetes service of type [NodePort](https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport) for every entity in the topology.
 
 By default, most Kubernetes distribution have [30,000;32,767] has a default port range for NodePort.
 Thus, you are **limited to 2768 entities**.
@@ -72,21 +70,21 @@ However, it is possible to modify this range.
 In its current state, MSTG assumes that you are using the aforementioned range.
 If not, you need to modify the values `K8S_DEFAULT_NODE_PORT_MIN` and `K8S_DEFAULT_NODE_PORT_MAX` in the file [constants.py](./generator/constants.py).
 
-### IPs of meshnet interface
+### IPs of Meshnet' interfaces
 
-As stated in [dependencies](#dependencies), we are using `Meshnet-CNI` for pod-to-pod direct communications which creates new interfaces in every pod and connect these new interfaces to other pods. Thus, we need to assign IP addresses to these.
+As stated in [dependencies](#dependencies), we are using `Meshnet-CNI` for pod-to-pod direct communications, which creates new interfaces in every pod and connect these new interfaces to other pods. Thus, we need to assign IP addresses to these.
 
 #### IPv4
 
 When deploying using IPv4, we are using /30 subnets of 10.0.0.0/8.
 
-This leaves you the possibility to create 2^22 networks where a network is equal to a connection between 2 entities.
+This leaves you the possibility to create $2^22$ networks, where a network is equal to a connection between 2 entities.
 
 #### IPv6
 
 When deploying using IPv6, we are using /124 subnets of fd00::/8 (IPv6 unique local address).
 
-This leaves you the possibility to create 2^116 networks where a network is equal to a connection between 2 entities.
+This leaves you the possibility to create $2^116$ networks, where a network is equal to a connection between 2 entities.
 
 ### Service IP range
 
@@ -113,7 +111,7 @@ kubectl cluster-info dump | grep -m 1 cluster-cidr
 ## Environment
 
 Tested on:
-- Linux 5.17
-- Ubuntu 22.04 LTS
-- Docker engine 25.0.3
-- Kind v0.20.0 (kind v0.20.0 go1.21.4 linux/amd64)
+- Linux 5.17;
+- Ubuntu 22.04 LTS;
+- Docker engine 25.0.3;
+- Kind v0.20.0 (kind v0.20.0 go1.21.4 linux/amd64).

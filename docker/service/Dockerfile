@@ -1,7 +1,7 @@
 # Dockerfile for service without CLT
 
 # Runner
-FROM alpine:3.19
+FROM alpine:latest
 
 # Install requried packages
 RUN apk add iproute2 iproute2-tc iptables --no-cache

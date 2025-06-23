@@ -74,7 +74,7 @@ mstg_ioam_collector: $(DOCKER_DIR)/ioam-collector/Dockerfile $(DOCKER_DIR)/ioam-
 # GENERATOR - DOCKER COMPOSE
 # -----------------------------------------------
 
-.PHONY: ipv6 ipv6_https ipv6_jaeger ipv6_jaeger_https
+.PHONY: ipv6 ipv6_https ipv6_jaeger ipv6_jaeger_https ipv6_ioam ipv6_ioam_jaeger
 .PHONY: ipv4 ipv4_https ipv4_jaeger ipv4_jaeger_https
 .PHONY: clt clt_https
 
@@ -97,6 +97,11 @@ ipv6_ioam: $(GEN_DIR)/*.py $(CONFIG)
 	@echo ""
 	@echo "Generating the docker compose for IPv6 with IOAM (no CLT)"
 	$(PYTHON) $(GEN_DIR)/generator.py --config $(CONFIG) --ip 6 --ioam
+
+ipv6_ioam_jaeger: $(GEN_DIR)/*.py $(CONFIG)
+	@echo ""
+	@echo "Generating the docker compose for IPv6 with IOAM (no CLT)"
+	$(PYTHON) $(GEN_DIR)/generator.py --config $(CONFIG) --ip 6 --ioam --jaeger
 
 ipv6_jaeger_https: $(GEN_DIR)/*.py $(CONFIG)
 	@echo ""

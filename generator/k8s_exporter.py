@@ -3,12 +3,16 @@ Export the architecture to the configuration files
 for Kubernetes.
 '''
 
-import entities, os, kubernetes
-from exporter import *
-from utils import *
-from constants import *
+import os
 
-class K8SExporter(Exporter):
+import entities
+import kubernetes
+import exporter
+import utils
+import constants
+
+
+class K8SExporter(exporter.Exporter):
     """Export architecture to Kubernetes configuration files."""
 
     def __init__(self, arch) -> None:
@@ -17,109 +21,110 @@ class K8SExporter(Exporter):
     def export(self):
         """Export the architecture to Kubernetes configuration files."""
 
-        if os.path.exists(K8S_EXPORT_FOLDER):
+        if os.path.exists(constants.K8S_EXPORT_FOLDER):
             # remove existing files to prevent port collisions
-            files = os.listdir(K8S_EXPORT_FOLDER)
+            files = os.listdir(constants.K8S_EXPORT_FOLDER)
             files = [f for f in files if f.endswith(".yaml")]
             for f in files:
-                os.remove(f"{K8S_EXPORT_FOLDER}/{f}")
+                os.remove(f"{constants.K8S_EXPORT_FOLDER}/{f}")
         else:
-            os.makedirs(K8S_EXPORT_FOLDER)
+            os.makedirs(constants.K8S_EXPORT_FOLDER)
 
         self.generate_meshnet_config()
 
         self.export_routers()
         self.export_services()
 
-        if is_using_jaeger():
+        if utils.is_using_jaeger():
             self.export_jaeger()
 
-        if is_using_clt():
+        if utils.is_using_clt():
             self.export_clt()
 
     def export_routers(self) -> None:
         '''Export all the routers into Kubernetes configuration files.'''
         for entity in self.arch.entities:
             if isinstance(entity, entities.Router):
-                print_info(f"Exporting router {entity.name} to Kubernetes format...")
+                utils.print_info(f"Exporting router {entity.name} to Kubernetes format...")
                 entity.export_k8s()
 
     def export_services(self) -> None:
         '''Export all the services into Kubernetes configuration files.'''
         for entity in self.arch.entities:
             if isinstance(entity, entities.Service):
-                print_info(f"Exporting service {entity.name} to Kubernetes format...")
+                utils.print_info(f"Exporting service {entity.name} to Kubernetes format...")
                 entity.export_k8s()
 
     def export_jaeger(self) -> None:
         """Export Jaeger into Kubernetes pod and service."""
-        print_info("Exporting Jaeger to Kubernetes format...")
+        utils.print_info("Exporting Jaeger to Kubernetes format...")
 
         # pod
-        f = open(f"{K8S_EXPORT_FOLDER}/jaeger_pod.yaml", "w")
-        f.write(K8S_JAEGER_POD)
-        f.close()
+        with open(f"{constants.K8S_EXPORT_FOLDER}/jaeger_pod.yaml", "w", encoding="utf-8") as f:
+            f.write(constants.K8S_JAEGER_POD)
 
         # service
-        mapping = dict(nodePort=kubernetes.Kubernetes.next_node_port())
-        service = K8S_JAEGER_SERVICE.substitute(mapping)
-        f = open(f"{K8S_EXPORT_FOLDER}/jaeger_service.yaml", "w")
-        f.write(service)
-        f.close()
+        mapping = {"nodePort": kubernetes.Kubernetes.next_node_port()}
+        service = constants.K8S_JAEGER_SERVICE.substitute(mapping)
+        with open(f"{constants.K8S_EXPORT_FOLDER}/jaeger_service.yaml", "w", encoding="utf-8") as f:
+            f.write(service)
 
     def export_clt(self):
         """Exporting IOAM collector into Kubernetes pod and service."""
-        print_info("Exporting IOAM collector to Kubernetes format...")
+        utils.print_info("Exporting IOAM collector to Kubernetes format...")
 
         # pod
-        f = open(f"{K8S_EXPORT_FOLDER}/ioam_collector_pod.yaml", "w")
-        f.write(K8S_COLLECTOR_POD)
-        f.close()
+        with open(f"{constants.K8S_EXPORT_FOLDER}/ioam_collector_pod.yaml", "w", encoding="utf-8")\
+                as f:
+            f.write(constants.K8S_COLLECTOR_POD)
 
         # service
-        mapping = dict(nodePort=kubernetes.Kubernetes.next_node_port())
-        service = K8S_COLLECTOR_SERVICE.substitute(mapping)
-        f = open(f"{K8S_EXPORT_FOLDER}/ioam_collector_service.yaml", "w")
-        f.write(service)
-        f.close()
+        mapping = {"nodePort": kubernetes.Kubernetes.next_node_port()}
+        service = constants.K8S_COLLECTOR_SERVICE.substitute(mapping)
+        with open(f"{constants.K8S_EXPORT_FOLDER}/ioam_collector_service.yaml", "w",
+                  encoding="utf-8") as f:
+            f.write(service)
 
     def generate_meshnet_config(self):
         """Generate meshnet configuration for the entire architecture."""
 
         for e in self.arch.entities:
-            config = dict(pod_name=f"{e.name}-pod")
-            meshnetConfig = TEMPLATE_MESHNET_CONFIG.substitute(config)
+            config = {"pod_name": f'{e.name}-pod'}
+            meshnet_config = constants.TEMPLATE_MESHNET_CONFIG.substitute(config)
 
             # create config for each interface
             interfaces = []
-            for net in e.attachedNetworks:
-                network, id = self.arch.find_network(net['name'])
-                peerName = network.begin if network.begin != e.name else network.end
-                localIP = network.beginIP if network.begin == e.name else network.endIP
-                peerIP = network.beginIP if network.begin == peerName else network.endIP
-                localID = e.attachedNetworks.index(net)
+            for net in e.attached_networks:
+                network, net_id = self.arch.find_network(net['name'])
+                peer_name = network.begin if network.begin != e.name else network.end
+                local_ip = network.begin_ip if network.begin == e.name else network.end_ip
+                peer_ip = network.begin_ip if network.begin == peer_name else network.end_ip
+                local_id = e.attached_networks.index(net)
 
-                peer = self.arch.find_entity(peerName)
+                peer = self.arch.find_entity(peer_name)
                 if peer is None:
-                    raise RuntimeError(f"Unable to get peer {peerName} in generate_meshnet_config")
+                    raise RuntimeError(f"Unable to get peer {peer_name} in generate_meshnet_config")
 
-                peerNetID = peer.get_network_pos(net['name'])
-                if peerNetID is None:
-                    raise RuntimeError(f"Unable to get id of network {network} for peer {peerName}")
+                peer_net_id = peer.get_network_pos(net['name'])
+                if peer_net_id is None:
+                    raise RuntimeError(f"Unable to get id of network {network} for peer "
+                                       f"{peer_name}")
 
                 prefix = str(network.network.prefixlen)
 
-                # localID + 1 and peerNetID + 1 because eth0 is always configured by default (kindnet, Calico, etc.) CNI
+                # local_id + 1 and peer_net_id + 1 because eth0 is always configured by default
+                # (kindnet, Calico, etc.) CNI
                 config = dict(
-                    id=id+1, peer_name=f"{peerName}-pod", local_eth=f"eth{localID+1}", peer_eth=f"eth{peerNetID+1}",
-                    local_ip=f"{localIP}/{prefix}", peer_ip=f"{peerIP}/{prefix}"
+                    net_id=net_id + 1, peer_name=f"{peer_name}-pod",
+                    local_eth=f"eth{local_id + 1}", local_ip=f"{local_ip}/{prefix}",
+                    peer_eth=f"eth{peer_net_id + 1}", peer_ip=f"{peer_ip}/{prefix}"
                 )
-                interface = TEMPLATE_MESHNET_INTERFACE.substitute(config)
+                interface = constants.TEMPLATE_MESHNET_INTERFACE.substitute(config)
                 interfaces.append(interface)
 
             # write meshnet config for entity into file
-            f = open(f"{K8S_EXPORT_FOLDER}/{e.name}_meshnet.yaml", "w")
-            f.write(meshnetConfig)
-            for intf in interfaces:
-                f.write(intf)
-            f.close()
+            with open(f"{constants.K8S_EXPORT_FOLDER}/{e.name}_meshnet.yaml", "w",
+                      encoding="utf-8") as f:
+                f.write(meshnet_config)
+                for intf in interfaces:
+                    f.write(intf)

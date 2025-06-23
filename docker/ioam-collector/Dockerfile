@@ -1,5 +1,5 @@
 # Build IOAM collector
-FROM golang:1.22-alpine AS build
+FROM golang:1.24-alpine AS build
 
 RUN apk add protobuf protobuf-dev
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest

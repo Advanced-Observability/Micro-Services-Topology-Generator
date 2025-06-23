@@ -1,0 +1,25 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      psize: 512
+      connections:
+        - path: r1->db
+          url: /
+          buffer_size: 1000
+          timers:
+            - option: buffer_size
+              start: abcd
+              duration: 20
+              newValue: 1500
+r1:
+  type: router
+  connections:
+    - path: db
+db:
+  type: service
+  port: 10001
+  endpoints:
+    - entrypoint: /
+      psize: 128

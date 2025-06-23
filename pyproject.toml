@@ -1,0 +1,9 @@
+[project]
+name = "generator"
+version = "0.0.4"
+
+[tool.pytest.ini_options]
+pythonpath = "generator"
+addopts = [
+    "--import-mode=importlib",
+]

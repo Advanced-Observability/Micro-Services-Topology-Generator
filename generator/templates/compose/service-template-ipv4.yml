@@ -2,7 +2,7 @@
     container_name: ${name}
     hostname: ${name}
     image: ${dockerImage}
-    command: sh -c "${additionalCommands}(/sbin/ip r d default) & (/usr/local/bin/service /etc/config.yml)"
+    command: sh -c "${additional_cmds}(/sbin/ip r d default) & (/usr/local/bin/service /etc/config.yml)"
     restart: on-failure
     privileged: true
     cap_add:

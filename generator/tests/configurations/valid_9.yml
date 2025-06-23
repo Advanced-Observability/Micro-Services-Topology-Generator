@@ -1,0 +1,138 @@
+adservice:
+  type: service
+  port: 9555
+  endpoints:
+  - entrypoint: /GetAds
+    psize: 224
+
+cartservice:
+  type: service
+  port: 7070
+  endpoints:
+    - entrypoint: /AddItem
+      psize: 2
+    - entrypoint: /GetCart
+      psize: 169
+    - entrypoint: /EmptyCart
+      psize: 2
+
+checkoutservice:
+  type: service
+  port: 5050
+  endpoints:
+    - entrypoint: /PlaceOrder
+      psize: 62
+      connections:
+        - path: cartservice
+          url: /GetCart
+        - path: productcatalogservice
+          url: /GetProduct
+        - path: shippingservice
+          url: /GetQuote
+        - path: currencyservice
+          url: /Convert
+        - path: paymentservice
+          url: /Charge
+        - path: shippingservice
+          url: /ShipOrder
+        - path: cartservice
+          url: /EmptyCart
+        - path: emailservice
+          url: /send_order_confirmation
+
+currencyservice:
+  type: service
+  port: 7001
+  endpoints:
+    - entrypoint: /GetSupportedCurrencies
+      psize: 248
+    - entrypoint: /Convert
+      psize: 45
+
+emailservice:
+  type: service
+  port: 6060
+  endpoints:
+    - entrypoint: /send_order_confirmation
+      psize: 30
+
+frontend:
+  type: service
+  port: 8080
+  endpoints:
+    - entrypoint: /
+      psize: 43735
+    - entrypoint: /api/cart
+      psize: 119
+      connections:
+        - path: cartservice
+          url: /GetCart
+    - entrypoint: /api/checkout
+      psize: 1697
+      connections: 
+        - path: checkoutservice
+          url: /PlaceOrder
+        - path: productcatalogservice
+          url: /GetProduct
+    - entrypoint: /api/data
+      psize: 185
+      connections:
+        - path: adservice
+          url: /GetAds
+    - entrypoint: /api/products
+      psize: 6323
+      connections:
+        - path: productcatalogservice
+          url: /ListProducts
+    - entrypoint: /api/recommendations
+      psize: 2758
+      connections:
+        - path: recommendationservice
+          url: /ListRecommendation
+        - path: productcatalogservice
+          url: /GetProduct
+
+paymentservice:
+  type: service
+  port: 50051
+  endpoints:
+    - entrypoint: /Charge
+      psize: 59
+
+productcatalogservice:
+  type: service
+  port: 3550
+  endpoints:
+    - entrypoint: /ListProducts
+      psize: 7050
+    - entrypoint: /GetProduct
+      psize: 578
+
+quoteservice:
+  type: service
+  port: 8090
+  endpoints:
+    - entrypoint: /getquote
+      psize: 45
+
+recommendationservice:
+  type: service
+  port: 9001
+  endpoints:
+    - entrypoint: /ListRecommendations
+      psize: 110
+      connections:
+        - path: productcatalogservice
+          url: /ListProduct
+
+shippingservice:
+  type: service
+  port: 50050
+  endpoints:
+    - entrypoint: /GetQuote
+      psize: 59
+      connections:
+        - path: quoteservice
+          url: /getquote
+    - entrypoint: /ShipOrder
+      psize: 59

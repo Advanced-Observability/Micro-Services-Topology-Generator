@@ -18,7 +18,7 @@ import (
 
 const (
 	DEFAULT_CONFIG_PATH     = "../config.yml"                                                  // Default path to config file
-	VERSION                 = "0.0.2"                                                          // Version of the service
+	VERSION                 = "0.0.4"                                                          // Version of the service
 	DEFAULT_PACKET_SIZE     = 64                                                               // Default packet size in bytes
 	DEFAULT_JAEGER_HOSTNAME = "jaeger"                                                         // Default Jaeger hostname
 	MAX_LEN_TRACE_RES       = 12                                                               // Maximum number of characters from random string into OTEL
@@ -42,7 +42,7 @@ func GetFdFromConn(c net.Conn) int {
 func randomString(n int) string {
 	sb := strings.Builder{}
 	sb.Grow(n)
-	for i := 0; i < n; i++ {
+	for range n {
 		sb.WriteByte(CHARSET[rand.Intn(len(CHARSET))])
 	}
 	return sb.String()
@@ -69,7 +69,6 @@ func getAddress(services map[string]Service, service string) string {
 // Reads config file and returns map of services
 func readConfig(file string) (map[string]Service, error) {
 	yfile, err := os.ReadFile(file)
-
 	if err != nil {
 		return nil, err
 	}
@@ -77,34 +76,33 @@ func readConfig(file string) (map[string]Service, error) {
 	data := make(map[string]Service)
 
 	err2 := yaml.Unmarshal(yfile, &data)
-
 	if err2 != nil {
 		return nil, err2
 	}
 
 	// modify data for name indexing
-	for k, v := range data {
+	for name, service := range data {
 		// remove routers -> a service should be unaware of them
-		if v.Type == "router" {
-			delete(data, k)
+		if service.Type == "router" {
+			delete(data, name)
 		}
 
 		// save name in Name field
-		if entry, ok := data[k]; ok {
-			entry.Name = k
-			entry.Addr = k
-			data[k] = entry
+		if entry, ok := data[name]; ok {
+			entry.Name = name
+			entry.Addr = name
+			data[name] = entry
 		}
 	}
 
-	for k, v := range data {
+	for name, service := range data {
 
 		// create the _Endpoints and _MaxPsize field, indexed by the entrypoint string
-		if len(v.Endpoints) > 0 {
-			v._Endpoints = make(map[string]Endpoint)
-			for _, endp := range v.Endpoints {
-				if _, ok := v._Endpoints[endp.Entrypoint]; ok {
-					log.Fatal("Multiple identical entrypoints in service " + v.Name + ": " + endp.Entrypoint)
+		if len(service.Endpoints) > 0 {
+			service._Endpoints = make(map[string]Endpoint)
+			for _, endp := range service.Endpoints {
+				if _, ok := service._Endpoints[endp.Entrypoint]; ok {
+					log.Fatal("Multiple identical entrypoints in service " + service.Name + ": " + endp.Entrypoint)
 				}
 
 				// set default packet size
@@ -116,7 +114,7 @@ func readConfig(file string) (map[string]Service, error) {
 				endp.Psize = max(endp.Psize, MIN_PACKET_SIZE)
 
 				// compute maximum packet size in all endpoints
-				v._MaxPsize = max(v._MaxPsize, endp.Psize)
+				service._MaxPsize = max(service._MaxPsize, endp.Psize)
 
 				// keep last hop if Conn contains some paths
 				if len(endp.Connections) > 0 {
@@ -129,12 +127,12 @@ func readConfig(file string) (map[string]Service, error) {
 				}
 
 				// assign new value
-				v._Endpoints[endp.Entrypoint] = endp
+				service._Endpoints[endp.Entrypoint] = endp
 			}
 		}
 
 		// assign new value
-		data[k] = v
+		data[name] = service
 
 	}
 
@@ -204,6 +202,7 @@ func parseEnvVariables() {
 // Print info about the service.
 func serviceInfo() {
 	fmt.Println("=== Starting service " + conf.ownName + " ===")
+	fmt.Println("Version: " + VERSION)
 	fmt.Println("Config file: " + conf.configPath)
 	fmt.Println("Address: " + conf.services[conf.ownName].Addr)
 	fmt.Println("Port: " + strconv.Itoa(conf.services[conf.ownName].Port))
@@ -219,7 +218,7 @@ func serviceInfo() {
 	}
 
 	if conf.enableCLT {
-		fmt.Println("Using CLT agent for netlink communication")
+		fmt.Println("Using CLT")
 	}
 
 	if len(conf.services[conf.ownName]._Endpoints) != 0 {

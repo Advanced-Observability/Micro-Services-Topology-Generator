@@ -1,6 +1,6 @@
 # Dockerfile for router with CLT
 
-FROM alpine:latest
+FROM alpine:3.19
 
 # Install requried packages
 RUN apk update

@@ -1,0 +1,22 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      psize: 512
+      connections:
+        - path: r1->db
+          url: /
+          mtu: 1234
+          buffer_size: 1234
+          rate: ambit
+r1:
+  type: router
+  connections:
+    - path: db
+db:
+  type: service
+  port: 10001
+  endpoints:
+    - entrypoint: /
+      psize: 128

@@ -1,0 +1,15 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      psize: 512
+      connections:
+        - path: db
+          url: /
+frontend:
+  type: service
+  port: 10001
+  endpoints:
+    - entrypoint: /
+      psize: 128

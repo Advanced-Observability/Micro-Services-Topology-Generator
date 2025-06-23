@@ -1,26 +1,28 @@
-# Basic example configuration
-
 frontend:
   type: service
   port: 80
   endpoints:
     - entrypoint: /
-      psize: 128
+      psize: 512
       connections:
         - path: r1->db
           url: /
-          mtu: 2500
 
 r1:
   type: router
   connections:
-    - path: db
+    - path: shopping
 
 db:
   type: service
-  port: 7000
-  expose: false
+  port: 81
   endpoints:
     - entrypoint: /
-      psize: 64
+      psize: 128
 
+shopping:
+  type: service
+  port: 82
+  endpoints:
+    - entrypoint: /
+      psize: 128
