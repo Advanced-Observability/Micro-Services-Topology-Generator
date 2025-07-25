@@ -1,14 +1,13 @@
-'''
-Utilities for the generator of docker compose and
-kubernetes configuration files.
-'''
+"""
+Utilities for MSTG.
+"""
 
-import sys
 import os
-import ipaddress
 import re
+import sys
 import argparse
 import bitarray
+import ipaddress
 import bitarray.util
 
 import constants
@@ -113,6 +112,13 @@ def check_arguments(args) -> str:
 
     return args.config
 
+def get_interface_name(id: int, name: str) -> str:
+    """Get the name of an interface."""
+    if output_is_k8s():
+        return f"eth{id}"
+    else:
+        return f"eth{id}_{name}"
+
 
 def output_is_compose() -> bool:
     """True if output is Docker Compose."""
@@ -169,7 +175,7 @@ def topology_is_https() -> bool:
     return os.environ[constants.HTTP_VER_ENV] == "https"
 
 
-def convert_network_id_to_ip6_network(prefix: int) -> ipaddress.IPv6Network:
+def convert_net_id_to_ip6_net(prefix: int) -> ipaddress.IPv6Network:
     '''
     Convert the given network `prefix` to IPv6 network.
     Assumption: every network as a prefix of 64 bits.
@@ -182,7 +188,7 @@ def convert_network_id_to_ip6_network(prefix: int) -> ipaddress.IPv6Network:
     return ipaddress.IPv6Network((int(string, 2), 64))
 
 
-def convert_network_id_to_ip4_network(prefix: int) -> ipaddress.IPv4Network:
+def convert_net_id_to_ip4_net(prefix: int) -> ipaddress.IPv4Network:
     '''
     Convert the given network `prefix` to IPv4 network.
     Assumption: every network as a prefix of 22 bits.
@@ -196,7 +202,7 @@ def convert_network_id_to_ip4_network(prefix: int) -> ipaddress.IPv4Network:
     return ipaddress.IPv4Network((int(string, 2), 22))
 
 
-def convert_network_id_to_k8s_ipv4(prefix: int) -> ipaddress.IPv4Network:
+def convert_net_id_to_k8s_ipv4(prefix: int) -> ipaddress.IPv4Network:
     """
     Conver the given network `prefix` to IPv4 network.
     Assumption: every network is a /30 subnet of 10.0.0.0/8.
@@ -209,7 +215,7 @@ def convert_network_id_to_k8s_ipv4(prefix: int) -> ipaddress.IPv4Network:
     return ipaddress.IPv4Network((int(string, 2), 30))
 
 
-def convert_network_id_to_k8s_ipv6(prefix: int) -> ipaddress.IPv6Network:
+def convert_net_id_to_k8s_ipv6(prefix: int) -> ipaddress.IPv6Network:
     """
     Conver the given network `prefix` to IPv6 network.
     Assumption: every network is a /124 subnet of fd00::/8 (ipv6 unique local address).
@@ -259,7 +265,6 @@ def filter_cmd(option: str, cmd: str, interface: str) -> bool:
     if option not in ["mtu", "buffer_size"] and "qdisc" in cmd and interface in cmd:
         return True
     return False
-
 
 def build_ioam_trace_type() -> str:
     """Generate ioam trace type as hex based on configuration."""

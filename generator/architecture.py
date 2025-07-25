@@ -1,14 +1,17 @@
-'''
-Represent the architecture for the generator.
-'''
+"""
+Represent the architecture.
+"""
 
 import copy
 
-import config_parser
-import kubernetes
 import utils
+import router
 import entities
+import services
 import constants
+import kubernetes
+import config_parser
+import docker_network
 
 
 class Architecure:
@@ -18,14 +21,14 @@ class Architecure:
         self.filename = conf_file
         self.config = config
         self.entities: list[entities.Entity] = []
-        self.docker_networks: list[entities.DockerNetwork] = []
+        self.docker_networks: list[docker_network.DockerNetwork] = []
         self.kubernetes = kubernetes.Kubernetes() if utils.output_is_k8s() else None
         self.generate_architecture()
 
     def generate_architecture(self):
         """
-        Generate the architecture based on the given config and generate a docker compose
-        or launches the pods/services on the Kubernetes cluster.
+        Generate the architecture based on the given config and generate
+        configuration files for docker compose or kubernetes.
         """
         # Check if the given configuration is valid
         print("Checking validity of configuration...")
@@ -44,7 +47,7 @@ class Architecure:
         utils.print_info("Generated entities")
 
         print("\nChecking network connections...")
-        self.parse_end_to_end_connections()
+        self.parse_e2e_connections()
         utils.print_info("Parsed network connections")
 
         # Generate docker networks
@@ -63,9 +66,9 @@ class Architecure:
         utils.print_info("Generated ip route commands")
 
         # Add entries into /etc/hosts of services
-        print("\nAssociating hosts that are connected to each others...")
+        print("\nConfiguring DNS...")
         self.modify_etc_hosts()
-        utils.print_info("Associated hosts that are connected to each others")
+        utils.print_info("Configured DNS")
 
         # Associate each entity to the ones on which it depends
         print("\nAssociating entities to their dependencies...")
@@ -76,11 +79,6 @@ class Architecure:
         print("\nGenerating additional commands...")
         self.generate_additional_cmds()
         utils.print_info("Generated additional commands")
-
-        # Generate timers to trigger commands
-        print("\nGenerating timers...")
-        self.generate_timers()
-        utils.print_info("Generated timers\n")
 
     def print(self):
         """Print the architecture"""
@@ -103,15 +101,24 @@ class Architecure:
     def generate_entities(self):
         '''Generate list of entities from the configuration.'''
         for entity in self.config:
-            if self.config[entity]["type"] == "service":
-                self.entities.append(entities.Service(entity, self.config[entity]))
-            elif self.config[entity]["type"] == "router":
-                self.entities.append(entities.Router(entity))
+            entity_type = self.config[entity]["type"]
+            if entity_type == "service":
+                self.entities.append(services.Service(
+                    entity, self.config[entity],
+                    False,
+                    "mstg_service_clt" if utils.is_using_clt() else "mstg_service"
+                ))
+            elif entity_type == "external":
+                self.entities.append(services.Service(
+                    entity, self.config[entity],
+                    True, self.config[entity]["image"]
+                ))
+            elif entity_type == "router":
+                self.entities.append(router.Router(entity))
             else:
-                raise RuntimeError(f"Entity {entity} has unexpected "
-                                   f"type {self.config[entity]["type"]}")
+                raise RuntimeError(f"Entity {entity} has unexpected type {entity_type}")
 
-    def find_entity(self, name: str):
+    def find_entity(self, name: str) -> entities.Entity | None:
         '''
         Find an entity in the architecture with the given `name`.
         If not found, return None.
@@ -122,15 +129,16 @@ class Architecure:
 
         return None
 
-    def find_service(self, name: str):
+    def find_service(self, name: str) -> services.Service | None:
         '''
         Find service with given `name`.
         If not found, return None.
         '''
-        for entity in self.entities:
-            if entity.name == name and isinstance(entity, entities.Service):
-                return entity
-        return None
+        entity = self.find_entity(name)
+        if isinstance(entity, services.Service):
+            return entity
+        else:
+            return None
 
     def find_network(self, name: str):
         '''
@@ -144,11 +152,11 @@ class Architecure:
 
         return None
 
-    def parse_end_to_end_connections(self) -> None:
+    def parse_e2e_connections(self) -> None:
         '''Parse E2E connections for the services based on the architecture.'''
 
         for entity in self.entities:
-            if not isinstance(entity, entities.Service):
+            if not isinstance(entity, services.Service):
                 continue
 
             e = config_parser.get_entity(self.config, entity.name)
@@ -156,9 +164,15 @@ class Architecure:
                 raise RuntimeError(f"Unable to get entity {entity.name}")
 
             connections: list[str] = []
-            for endpoint in e["endpoints"]:
-                if "connections" in endpoint and endpoint["connections"] is not None:
-                    connections.extend(conn["path"] for conn in endpoint["connections"])
+
+            if not entity.external:
+                for endpoint in e["endpoints"]:
+                    if "connections" in endpoint and endpoint["connections"] is not None:
+                        connections.extend(conn["path"] for conn in endpoint["connections"])
+            else:
+                for conn in e["connections"]:
+                    if "path" in conn and conn["path"] is not None:
+                        connections.append(conn["path"])
 
             entity.e2e_conns.extend(connections)
 
@@ -175,12 +189,12 @@ class Architecure:
         names = [net["name"] for net in entity.attached_networks]
 
         # every service is connected to the telemetry network if otel/jaeger is used
-        if isinstance(entity, entities.Service) and utils.is_using_jaeger() and \
+        if isinstance(entity, services.Service) and utils.is_using_jaeger() and \
                         utils.output_is_compose():
             names.append("network_telemetry")
 
-        net_name1 = entities.DockerNetwork.generate_name(source, dest)
-        net_name2 = entities.DockerNetwork.generate_name(dest, source)
+        net_name1 = docker_network.DockerNetwork.generate_name(source, dest)
+        net_name2 = docker_network.DockerNetwork.generate_name(dest, source)
         if net_name1 in names:
             # +1 for k8s because eth0 is assigned by default cni
             return names.index(net_name1) if utils.output_is_compose() else names.index(net_name1) + 1
@@ -197,7 +211,7 @@ class Architecure:
         Otherwise, it uses the telemetry network for communication between the services.
         """
         for entity in self.entities:
-            if not isinstance(entity, entities.Service):
+            if not isinstance(entity, services.Service):
                 continue
 
             for e2e in entity.e2e_conns:
@@ -281,7 +295,7 @@ class Architecure:
         '''Generate the IP route commands to configure the services.'''
 
         for e in self.entities:
-            if not isinstance(e, entities.Service):
+            if not isinstance(e, services.Service):
                 continue
 
             for e2e in e.e2e_conns:
@@ -293,7 +307,7 @@ class Architecure:
                 elif utils.is_using_clt() or utils.is_using_ioam_only():
                     self.ip_route_direct_connection(e, e2e)
 
-    def ip_route_path_connection(self, source_entity: entities.Service, path: str) -> None:
+    def ip_route_path_connection(self, source_entity: services.Service, path: str) -> None:
         '''
         Generate ip route commands for `path` starting from `source_entity`.
         '''
@@ -348,16 +362,16 @@ class Architecure:
                 if utils.topology_is_ipv6():
                     # if ioam and first node => encap ioam pto in route
                     if (utils.is_using_clt() or utils.is_using_ioam_only()) and i == 0:
-                        cmd = constants.TEMPLATE_IP6_ROUTE_PATH.format(
+                        cmd = constants.IP6_ROUTE_PATH_IOAM.format(
                             dest_ip_subnet, ioam_trace_hex, size_ioam_data, next_net.end_ip
                         )
                     else:
-                        cmd = constants.TEMPLATE_IP6_ROUTE_PATH_NO_IOAM.format(
+                        cmd = constants.IP6_ROUTE_PATH_VANILLA.format(
                             dest_ip_subnet, next_net.end_ip
                         )
                 elif utils.topology_is_ipv4():
-                    cmd = constants.TEMPLATE_IP4_ROUTE_PATH.format(dest_ip_subnet, next_net.end_ip)
-                curr_entity.iproute_cmds.add(cmd)
+                    cmd = constants.IP4_ROUTE_PATH_VANILLA.format(dest_ip_subnet, next_net.end_ip)
+                curr_entity.commands.append(cmd)
 
             # towards source
             if i != 0:
@@ -368,17 +382,17 @@ class Architecure:
                     raise RuntimeError(f"Cannot get network shared by {prev} and {curr}")
 
                 if utils.topology_is_ipv4():
-                    cmd = constants.TEMPLATE_IP4_ROUTE_PATH.format(
+                    cmd = constants.IP4_ROUTE_PATH_VANILLA.format(
                         source_ip_subnet, prev_net.begin_ip
                     )
                 else:
-                    cmd = constants.TEMPLATE_IP6_ROUTE_PATH_NO_IOAM.format(
+                    cmd = constants.IP6_ROUTE_PATH_VANILLA.format(
                         source_ip_subnet, prev_net.begin_ip
                     )
 
-                curr_entity.iproute_cmds.add(cmd)
+                curr_entity.commands.append(cmd)
 
-    def ip_route_direct_connection(self, source_entity: entities.Service, dest: str) -> None:
+    def ip_route_direct_connection(self, source_entity: services.Service, dest: str) -> None:
         '''
         Generate ip route command for direct connection between `source_entity` and `dest`.
         Only required for IOAM/CLT over IPv6.
@@ -394,18 +408,19 @@ class Architecure:
         # towards dest
 
         # get interface id (ethX) of source to contact end host
-        interface_id = self.get_interface_id(source_entity.name, dest)
-        if interface_id is None:
+        if_id = self.get_interface_id(source_entity.name, dest)
+        if if_id is None:
             raise RuntimeError(f"Unable to get interface of {source_entity.name} to contact {dest}")
 
-        source_entity.iproute_cmds.add(constants.TEMPLATE_IP6_ROUTE_DIRECT_CONNECTION.format(
-            net.end_ip, ioam_trace_hex, size_ioam_data, f"{interface_id}_{source_entity.name}")
-        )
+        source_entity.commands.append(constants.IP6_ROUTE_DIRECT_IOAM.format(
+            net.end_ip, ioam_trace_hex, size_ioam_data,
+            utils.get_interface_name(if_id, source_entity.name)
+        ))
 
     def generate_docker_networks(self) -> None:
         '''Generate all docker networks based on the architecture.'''
         for pair in self.graph.edges:
-            net = entities.DockerNetwork(pair[0], pair[1])
+            net = docker_network.DockerNetwork(pair[0], pair[1])
             self.docker_networks.append(net)
 
     def associate_docker_networks(self) -> None:
@@ -423,6 +438,18 @@ class Architecure:
                         "ip": ip
                     })
 
+    def generate_additional_cmds(self) -> None:
+        '''Generate extra commands to configure the entities of the architecture.'''
+        for entity in self.entities:
+            conf = config_parser.get_entity(self.config, entity.name)
+            if conf is None:
+                raise RuntimeError(f"Entity {entity.name} has not been found")
+
+            cmds = self.generate_traffic_impairments(entity, conf)
+            entity.commands.extend(cmds)
+            self.generate_timers(entity, conf)
+
+
     def generate_traffic_impairments(self, entity: entities.Entity, entity_config) -> list:
         '''
         Generate the list of commands to impair the traffic
@@ -435,14 +462,16 @@ class Architecure:
         for conn in connections:
             first_hop = conn['path'].split("->")[0] if "->" in conn["path"] else conn["path"]
 
-            interface = self.get_interface_id(entity.name, first_hop)
-            if interface is None:
+            if_id = self.get_interface_id(entity.name, first_hop)
+            if if_id is None:
                 raise RuntimeError(f"Cannot find interface to contact {first_hop} "
                                    f"from {entity.name}")
 
+            if_name = utils.get_interface_name(if_id, entity.name)
+
             # modify mtu
             if "mtu" in conn and isinstance(conn["mtu"], int) and conn["mtu"] >= 1280:
-                cmd = constants.MTU_OPTION.format(f"{interface}_{entity.name}", conn['mtu'])
+                cmd = constants.MTU_OPTION.format(if_name, conn['mtu'])
                 commands.append(cmd)
             elif "mtu" not in conn:
                 pass
@@ -453,7 +482,7 @@ class Architecure:
             # modify buffer size
             if "buffer_size" in conn and isinstance(conn["buffer_size"], int):
                 cmd = constants.BUFFER_SIZE_OPTION.format(
-                    f"{interface}_{entity.name}", conn['buffer_size']
+                    if_name, conn['buffer_size']
                 )
                 commands.append(cmd)
             elif "buffer_size" not in conn:
@@ -462,194 +491,162 @@ class Architecure:
                 raise RuntimeError(f"Buffer size must be an integer for connection "
                                    f"{conn} of {entity.name}")
 
-            # build command
-            ip_tc_cmd = f"tc qdisc add dev eth{interface} root netem"
-            ip_tc_command_original_length = len(ip_tc_cmd)
-
-            # modify rate
-            if "rate" in conn and isinstance(conn["rate"], str) and\
-                utils.match_tc_rate(conn["rate"]):
-                ip_tc_cmd += f" rate {conn['rate']}"
-            elif "rate" not in conn:
-                pass
-            else:
-                raise RuntimeError(f"Rate for connection {conn} of {entity.name} must be a "
-                                   f"int followed by a rate unit valid for tc")
-
-            # modify delay
-            if "delay" in conn and isinstance(conn['delay'], str) and\
-                  utils.match_tc_time(conn["delay"]):
-                ip_tc_cmd += f" delay {conn['delay']}"
-                if "jitter" in conn and isinstance(conn["jitter"], str) and\
-                    utils.match_tc_time(conn["jitter"]):
-                    ip_tc_cmd += f" {conn['jitter']}"
-                elif "jitter" not in conn:
-                    pass
-                else:
-                    raise RuntimeError(f"Jitter for connection {conn} of {entity.name} must be "
-                                       f"a int followed by a time unit valid for tc")
-            elif "delay" not in conn:
-                pass
-            else:
-                raise RuntimeError(f"Delay for connection {conn} of {entity.name} must be a int "
-                                   f"followed by a time unit valid for tc")
-
-            # modify jitter
-            if "jitter" in conn and "delay" not in conn:
-                raise RuntimeError(f"Cannot specify some jitter and not some delay for connection "
-                                   f"{conn} of {entity.name}")
-
-            # modify loss
-            if "loss" in conn and isinstance(conn["loss"], str) and\
-                utils.match_tc_percent(conn["loss"]):
-                ip_tc_cmd += f" loss {conn['loss']}"
-            elif "loss" not in conn:
-                pass
-            else:
-                raise RuntimeError(f"Loss for connection {conn} of {entity.name} must be a int "
-                                   f"followed by %")
-
-            # modify corrupt
-            if "corrupt" in conn and isinstance(conn["corrupt"], str) and\
-                utils.match_tc_percent(conn["corrupt"]):
-                ip_tc_cmd += f" corrupt {conn['corrupt']}"
-            elif "corrupt" not in conn:
-                pass
-            else:
-                raise RuntimeError(f"Corruption rate for connection {conn} of {entity.name} must "
-                                   f"be a int followed by %")
-
-            # modify duplicate
-            if "duplicate" in conn and isinstance(conn["duplicate"], str) and\
-                utils.match_tc_percent(conn["duplicate"]):
-                ip_tc_cmd += f" duplicate {conn['duplicate']}"
-            elif "duplicate" not in conn:
-                pass
-            else:
-                raise RuntimeError(f"Duplicate rate for connection {conn} of {entity.name} must "
-                                   f"be a int followed by %")
-
-            # modify reorder
-            if "reorder" in conn and isinstance(conn["reorder"], str) and\
-                utils.match_tc_percent(conn["reorder"]):
-                ip_tc_cmd += f" reorder {conn['reorder']}"
-            elif "reorder" not in conn:
-                pass
-            else:
-                raise RuntimeError(f"Reorder rate for connection {conn} of {entity.name} must be "
-                                   f"a int followed by %")
-
-            # check that some options were added
-            if len(ip_tc_cmd) != ip_tc_command_original_length:
-                commands.append(ip_tc_cmd)
+            # impairments with tc command
+            cmd = self.generate_tc_command(entity, if_name, conn)
+            if len(cmd) > 0:
+                commands.append(cmd)
 
         return commands
 
-    def generate_additional_cmds(self) -> None:
-        '''Generate extra commands to configure the entities of the architecture.'''
-        for entity in self.entities:
-            conf = config_parser.get_entity(self.config, entity.name)
-            if conf is None:
-                raise RuntimeError(f"Entity {entity.name} has not been found")
+    def generate_tc_command(self, entity: entities.Entity, ifname: str, connection) -> str:
+        cmd = constants.IMPAIRMENT_OPTION.format(ifname)
+        cmd_original_length = len(cmd)
 
-            cmds = self.generate_traffic_impairments(entity, conf)
-            entity.additional_cmds.extend(cmds)
+        # modify rate
+        if "rate" in connection:
+            if isinstance(connection["rate"], str) and utils.match_tc_rate(connection["rate"]):
+                cmd += f" rate {connection['rate']}"
+            else:
+                raise RuntimeError(f"Rate for connection {connection} of {entity.name} must be a "
+                                    f"int followed by a rate unit valid for tc")
 
-    def generate_timers(self) -> None:
+        # modify delay
+        if "delay" in connection:
+            if isinstance(connection['delay'], str) and utils.match_tc_time(connection["delay"]):
+                cmd += f" delay {connection['delay']}"
+            else:
+                raise RuntimeError(f"Delay for connection {connection} of {entity.name} must be a int "
+                                    f"followed by a time unit valid for tc")
+            if "jitter" in connection:
+                if isinstance(connection["jitter"], str) and utils.match_tc_time(connection["jitter"]):
+                    cmd += f" {connection['jitter']}"
+                else:
+                    raise RuntimeError(f"Jitter for connection {connection} of {entity.name} must be "
+                                        f"a int followed by a time unit valid for tc")
+
+        # modify jitter
+        if "jitter" in connection and "delay" not in connection:
+            raise RuntimeError(f"Cannot specify some jitter and not some delay for connection "
+                                f"{connection} of {entity.name}")
+
+        # modify loss
+        if "loss" in connection:
+            if isinstance(connection["loss"], str) and utils.match_tc_percent(connection["loss"]):
+                cmd += f" loss {connection['loss']}"
+            else:
+                raise RuntimeError(f"Loss for connection {connection} of {entity.name} must be a int "
+                                    f"followed by %")
+
+        # modify corrupt
+        if "corrupt" in connection:
+            if isinstance(connection["corrupt"], str) and utils.match_tc_percent(connection["corrupt"]):
+                cmd += f" corrupt {connection['corrupt']}"
+            else:
+                raise RuntimeError(f"Corruption rate for connection {connection} of {entity.name} must "
+                                    f"be a int followed by %")
+
+        # modify duplicate
+        if "duplicate" in connection:
+            if isinstance(connection["duplicate"], str) and utils.match_tc_percent(connection["duplicate"]):
+                cmd += f" duplicate {connection['duplicate']}"
+            else:
+                raise RuntimeError(f"Duplicate rate for connection {connection} of {entity.name} must "
+                                    f"be a int followed by %")
+
+        # modify reorder
+        if "reorder" in connection:
+            if isinstance(connection["reorder"], str) and utils.match_tc_percent(connection["reorder"]):
+                cmd += f" reorder {connection['reorder']}"
+            else:
+                raise RuntimeError(f"Reorder rate for connection {connection} of {entity.name} must be "
+                                    f"a int followed by %")
+
+        if len(cmd) != cmd_original_length:
+            return cmd
+        else:
+            return ""
+
+    def generate_timers(self, entity: entities.Entity, entity_config) -> None:
         '''Generate commands to handle the timers.'''
 
-        for entity in self.entities:
-            e = config_parser.get_entity(self.config, entity.name)
-            if e is None:
-                raise RuntimeError(f"Entity {entity.name} has not been found")
+        connections = config_parser.extract_connections(entity_config)
 
-            connections = config_parser.extract_connections(e)
+        for conn in connections:
+            if "timers" not in conn or conn["timers"] is None:
+                continue
 
-            for conn in connections:
-                if "timers" not in conn or conn["timers"] is None:
-                    continue
+            first_hop = conn['path'].split("->")[0] if "->" in conn["path"] else conn["path"]
+            if_id = self.get_interface_id(entity.name, first_hop)
+            if if_id is None:
+                raise RuntimeError(f"Unable to find interface for "
+                                    f"{entity.name} and {first_hop}")
+            if_name = utils.get_interface_name(if_id, entity.name)
 
-                first_hop = conn['path'].split("->")[0] if "->" in conn["path"] else conn["path"]
-                interface = self.get_interface_id(entity.name, first_hop)
-                if interface is None:
-                    raise RuntimeError(f"Unable to find interface for "
-                                       f"{entity.name} and {first_hop}")
+            for timer in conn["timers"]:
+                # check if valid impairment
+                if timer["option"] not in constants.CONNECTION_IMPAIRMENTS:
+                    raise RuntimeError(f"{timer} for {conn} of {entity.name} is setting a "
+                                        f"timer on {timer['option']} which is not a connection "
+                                        f"impairment")
 
-                for timer in conn["timers"]:
-                    # check if valid impairment
-                    if timer["option"] not in constants.CONNECTION_IMPAIRMENTS:
-                        raise RuntimeError(f"{timer} for {conn} of {entity.name} is setting a "
-                                           f"timer on {timer['option']} which is not a connection "
-                                           f"impairment")
+                # check if there is an original value
+                if timer["option"] not in conn:
+                    raise RuntimeError(f"Cannot modify {timer['option']} for {conn} of "
+                                        f"{entity.name} with a timer because an original value "
+                                        f"is not set")
 
-                    # check if there is an original value
-                    if timer["option"] not in conn:
-                        raise RuntimeError(f"Cannot modify {timer['option']} for {conn} of "
-                                           f"{entity.name} with a timer because an original value "
-                                           f"is not set")
+                # generate commands for traffic impairment
+                cmds = self.generate_traffic_impairments(entity, entity_config)
 
-                    # create modified version of config
-                    new_config = copy.deepcopy(e)
-                    if new_config["type"] == "router":
-                        if "connections" in new_config and new_config["connections"] is not None:
-                            for connection in new_config["connections"]:
-                                if connection == conn:
-                                    connection[timer["option"]] = timer["newValue"]
-                    elif new_config["type"] == "service":
-                        for endpoint in new_config["endpoints"]:
-                            if "connections" in endpoint and endpoint["connections"] is not None:
-                                for connection in endpoint["connections"]:
-                                    if connection == conn:
-                                        connection[timer["option"]] = timer["newValue"]
+                # get command for particular option
+                filtered = list(filter(
+                    lambda cmd: utils.filter_cmd(timer['option'], cmd, if_name),
+                    cmds
+                ))
+                if len(filtered) != 1:
+                    raise RuntimeError(f"Unexpected length of commands for timer "
+                                        f"{timer['option']} for connection {conn} "
+                                        f"of entity {entity}")
 
-                    # generate command for traffic impairment
-                    cmds = self.generate_traffic_impairments(entity, new_config)
+                # generate new command
+                if "mtu" in filtered[0]:
+                    cmd_modify = constants.MODIFY_IMPAIRMENT.format(
+                        timer["start"],
+                        constants.MTU_OPTION.format(if_name, timer["newValue"])
+                    )
+                elif "txqueuelen" in filtered[0]:
+                    cmd_modify = constants.MODIFY_IMPAIRMENT.format(
+                        timer["start"],
+                        constants.BUFFER_SIZE_OPTION.format(if_name, timer["newValue"])
+                    )
+                else:
+                    connection = copy.deepcopy(conn)
+                    connection[timer["option"]] = timer["newValue"]
+                    cmd = self.generate_tc_command(entity, if_name, connection)
+                    cmd_modify = constants.MODIFY_IMPAIRMENT_DELETE_TC.format(
+                        timer['start'], if_name, cmd
+                    )
+                entity.commands.append(cmd_modify)
+
+                # generate command to restore original value for impairment
+                if "duration" in timer:
+                    cmds_reset = self.generate_traffic_impairments(entity, entity_config)
                     filtered = list(filter(
-                        lambda cmd: utils.filter_cmd(timer['option'], cmd, f"eth{interface}"), cmds
+                        lambda cmd: utils.filter_cmd(timer['option'], cmd, if_name),
+                        cmds_reset
                     ))
                     if len(filtered) != 1:
                         raise RuntimeError(f"Unexpected length of commands for timer "
-                                           f"{timer['option']} for connection {conn} "
-                                           f"of entity {entity}")
-                    index = filtered[0].find("eth")
-                    if index == -1:
-                        raise RuntimeError(f"Unable to find interface for {conn} of {entity.name}")
-                    index += 3  # skip "eth"
-
-                    # find interface id
-                    interface_id = ""
-                    while filtered[0][index].isdigit():
-                        interface_id += filtered[0][index]
-                        index += 1
+                                            f"{timer['option']} for connection {conn} of "
+                                            f"entity {entity}")
 
                     if "tc" in filtered[0]:
-                        cmd_modify = constants.MODIFY_IMPAIRMENT_DELETE_TC.format(
-                            timer['start'], f"{interface_id}_{entity.name}", filtered[0]
+                        cmd_reset = constants.MODIFY_IMPAIRMENT_DELETE_TC.format(
+                            timer["start"] + timer["duration"], if_name,
+                            filtered[0]
                         )
                     else:
-                        cmd_modify = constants.MODIFY_IMPAIRMENT.format(timer['start'], filtered[0])
-                    entity.additional_cmds.append(cmd_modify)
-
-                    # generate command to restore original value for impairment
-                    if "duration" in timer:
-                        cmds_reset = self.generate_traffic_impairments(entity, e)
-                        filtered = list(filter(
-                            lambda cmd: utils.filter_cmd(timer['option'], cmd, f"eth{interface}"),
-                            cmds_reset
-                        ))
-                        if len(filtered) != 1:
-                            raise RuntimeError(f"Unexpected length of commands for timer "
-                                               f"{timer['option']} for connection {conn} of "
-                                               f"entity {entity}")
-
-                        if "tc" in filtered[0]:
-                            cmd_reset = constants.MODIFY_IMPAIRMENT_DELETE_TC.format(
-                                timer["start"] + timer["duration"], f"{interface_id}_{entity.name}",
-                                filtered[0]
-                            )
-                        else:
-                            cmd_reset = constants.MODIFY_IMPAIRMENT.format(
-                                timer['start'] + timer['duration'], filtered[0]
-                            )
-
-                        entity.additional_cmds.append(cmd_reset)
+                        cmd_reset = constants.MODIFY_IMPAIRMENT.format(
+                            timer['start'] + timer['duration'], filtered[0]
+                        )
+                    entity.commands.append(cmd_reset)

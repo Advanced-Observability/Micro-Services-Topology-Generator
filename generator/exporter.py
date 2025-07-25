@@ -1,6 +1,6 @@
-'''
+"""
 Exporter of the architecture.
-'''
+"""
 
 from abc import ABC, abstractmethod
 

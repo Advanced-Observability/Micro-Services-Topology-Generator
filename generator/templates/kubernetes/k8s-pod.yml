@@ -8,9 +8,7 @@ spec:
   hostname: ${name}
   subdomain: ${serviceName}
   containers:
-    - args:
-        ${cmd}
-      env:
+    - env:
         - name: SERVICE_NAME
           value: ${shortName}
         - name: IOAM_COLLECTOR
@@ -32,10 +30,9 @@ spec:
       image: ${image}
       imagePullPolicy: Never
       name: ${name}
+      ${cmd}
       ports:
-        - containerPort: ${port}
-          hostPort: ${port}
-          protocol: TCP
+${ports}
       securityContext:
         runAsUser: 0
         privileged: True

@@ -13,6 +13,7 @@ After a request has been made, you can see the trace in Jaeger at [http://localh
 ## Example 1 ([`1_2_entities.yml`](1_2_entities.yml))
 
 2 services that are directly connected to each other.
+
 ![Diagram first example](diagrams/example_1.png)
 
 

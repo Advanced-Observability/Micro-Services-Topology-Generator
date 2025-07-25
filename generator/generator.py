@@ -1,7 +1,6 @@
-'''
-Python script to generate configuration files for Docker Compose or
-Kubernetes based on an architecture defined in an yml file.
-'''
+"""
+Main file for MSTG.
+"""
 
 import os
 import sys
@@ -9,11 +8,11 @@ import time
 import networkx as nx
 import matplotlib.pyplot as plt
 
-import config_parser
-import architecture
-import compose_exporter
-import k8s_exporter
 import utils
+import k8s_exporter
+import architecture
+import config_parser
+import compose_exporter
 from constants import ASCII_ART, VERSION
 
 

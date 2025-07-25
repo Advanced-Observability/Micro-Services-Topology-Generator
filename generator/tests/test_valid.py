@@ -5,7 +5,7 @@ import generator.generator
 
 
 def test_with_valid_configuration(capsys):
-    for i in range(1, 10):
+    for i in range(1, 11):
         ret = generator.generator.gen_config_files([
             '--config', f'tests/configurations/valid_{i}.yml',
             '--clt', '--ip', '6', '--ioam', '--jaeger'

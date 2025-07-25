@@ -5,10 +5,7 @@ metadata:
 spec:
   type: NodePort
   ports:
-    - name: "${port}"
-      port: ${port}
-      targetPort: ${port}
-      nodePort: ${nodePort}
+${ports}
   selector:
     name: ${podName}
 status:

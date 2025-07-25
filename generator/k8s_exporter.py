@@ -1,15 +1,16 @@
-'''
+"""
 Export the architecture to the configuration files
 for Kubernetes.
-'''
+"""
 
 import os
 
-import entities
-import kubernetes
-import exporter
 import utils
+import router
+import services
+import exporter
 import constants
+import kubernetes
 
 
 class K8SExporter(exporter.Exporter):
@@ -20,9 +21,12 @@ class K8SExporter(exporter.Exporter):
 
     def export(self):
         """Export the architecture to Kubernetes configuration files."""
+        # empty commands file
+        with open(constants.COMMANDS_FILE, "w", encoding="utf-8") as f:
+            f.write("#!/bin/bash\n\n")
 
+        # remove existing files to prevent port collisions
         if os.path.exists(constants.K8S_EXPORT_FOLDER):
-            # remove existing files to prevent port collisions
             files = os.listdir(constants.K8S_EXPORT_FOLDER)
             files = [f for f in files if f.endswith(".yaml")]
             for f in files:
@@ -44,14 +48,14 @@ class K8SExporter(exporter.Exporter):
     def export_routers(self) -> None:
         '''Export all the routers into Kubernetes configuration files.'''
         for entity in self.arch.entities:
-            if isinstance(entity, entities.Router):
+            if isinstance(entity, router.Router):
                 utils.print_info(f"Exporting router {entity.name} to Kubernetes format...")
                 entity.export_k8s()
 
     def export_services(self) -> None:
         '''Export all the services into Kubernetes configuration files.'''
         for entity in self.arch.entities:
-            if isinstance(entity, entities.Service):
+            if isinstance(entity, services.Service):
                 utils.print_info(f"Exporting service {entity.name} to Kubernetes format...")
                 entity.export_k8s()
 
@@ -114,11 +118,14 @@ class K8SExporter(exporter.Exporter):
 
                 # local_id + 1 and peer_net_id + 1 because eth0 is always configured by default
                 # (kindnet, Calico, etc.) CNI
-                config = dict(
-                    net_id=net_id + 1, peer_name=f"{peer_name}-pod",
-                    local_eth=f"eth{local_id + 1}", local_ip=f"{local_ip}/{prefix}",
-                    peer_eth=f"eth{peer_net_id + 1}", peer_ip=f"{peer_ip}/{prefix}"
-                )
+                config = {
+                    "id": net_id + 1,
+                    "peer_name": f"{peer_name}-pod",
+                    "local_eth": f"eth{local_id + 1}",
+                    "local_ip": f"{local_ip}/{prefix}",
+                    "peer_eth": f"eth{peer_net_id + 1}",
+                    "peer_ip": f"{peer_ip}/{prefix}"
+                }
                 interface = constants.TEMPLATE_MESHNET_INTERFACE.substitute(config)
                 interfaces.append(interface)
 

@@ -1,11 +1,11 @@
-'''
-Configuration parser for the generator of configuration files.
-'''
+"""
+Configuration parser for MSTG.
+"""
 
 import re
-from typing import Any
 import yaml
 import networkx as nx
+from typing import Any
 
 import utils
 import constants
@@ -57,12 +57,19 @@ def check_config(config) -> bool:
 
     # Check the specific fields for each type
     for entity in config:
-        if config[entity]['type'] == "service":
+        entity_type = config[entity]['type']
+        if entity_type == "service":
             if not check_service_fields(entity, config[entity]):
                 return False
-        elif config[entity]['type'] == "router":
+        elif entity_type == "router":
             if not check_router_fields(entity, config[entity]):
                 return False
+        elif entity_type == "external":
+            if not check_external_fields(entity, config[entity]):
+                return False
+        else:
+            utils.print_error(f"Entity {entity} has unknown type {entity_type}")
+            return False
 
     utils.print_info("passing check service and router fields")
 
@@ -95,14 +102,32 @@ def check_common_fields(name: str, entity) -> bool:
     True if the given entity contains all the common fields. Else, false.
     '''
 
-    if entity['type'] not in constants.KNOWN_TYPES:
-        utils.print_error(f"Entity {name} has unknown type " + entity['type'])
-        return False
-
     for field in constants.MANDATORY_COMMON_FIELDS:
         if field not in entity:
             utils.print_error(f"Entity {name} missing {field} field")
             return False
+
+    if entity['type'] not in constants.KNOWN_TYPES:
+        utils.print_error(f"Entity {name} has unknown type " + entity['type'])
+        return False
+
+    return True
+
+
+def check_external_fields(name: str, entity) -> bool:
+    '''
+    Check if the given `entity` with the given `name` has all the fields for an
+    externale container.
+    True if the given entity contains all the external fields. Else, false.
+    '''
+
+    for field in constants.EXTERNAL_FIELDS:
+        if field not in entity:
+            utils.print_error(f"Entity {name} missing {field} field")
+            return False
+
+    if not check_connection_specifications(name, entity, entity["connections"]):
+        return False
 
     return True
 
@@ -168,13 +193,13 @@ def check_single_impairment(name, value) -> bool:
         return True
 
     if name == "mtu" and not isinstance(value, int):
-        utils.print_error(f"MTU option must be an int")
+        utils.print_error("MTU option must be an int")
         return False
     elif name == "buffer_size" and not isinstance(value, int):
-        utils.print_error(f"Buffer size option must be an int")
+        utils.print_error("Buffer size option must be an int")
         return False
     elif name == "rate" and not utils.match_tc_rate(value):
-        utils.print_error(f"Rate option must be a rate")
+        utils.print_error("Rate option must be a rate")
         return False
     elif name in ["delay", "jitter"] and not utils.match_tc_time(value):
         utils.print_error(f"{name} option must be a time")
@@ -183,8 +208,8 @@ def check_single_impairment(name, value) -> bool:
         not utils.match_tc_percent(value):
         utils.print_error(f"{name} option must be a percentage between 0% and 100%")
         return False
-
-    return True
+    else:
+        return True
 
 
 def check_timers(entity, connection, field) -> bool:
@@ -231,12 +256,19 @@ def check_connection_specifications(name: str, entity, connections: list) -> boo
     Return True if the connections respect the specifications. Else, False.
     """
 
-    for connection in connections:
-        if entity["type"] == "service":
-            mandatory_list = constants.CONNECTION_SERVICE_MANDATORY_FIELDS
-        else:
-            mandatory_list = constants.CONNECTION_ROUTER_MANDATORY_FIELDS
+    entity_type = entity["type"]
 
+    if entity_type == "service":
+        mandatory_list = constants.CONNECTION_SERVICE_MANDATORY_FIELDS
+    elif entity_type == "router":
+        mandatory_list = constants.CONNECTION_ROUTER_MANDATORY_FIELDS
+    elif entity_type == "external":
+        mandatory_list = constants.CONNECTION_EXTERNAL_MANDATORY_FIELDS
+    else:
+        utils.print_error(f"Entity {entity} has unknown type {entity_type}")
+        return False
+
+    for connection in connections:
         for mandatory in mandatory_list:
             if mandatory not in connection:
                 utils.print_error(f"Entity {name} missing field {mandatory} "
@@ -303,7 +335,7 @@ def check_connectivity(config) -> bool:
                                       f"be a service")
                     return False
 
-            else: # connection is direct
+            else:  # connection is direct
 
                 # check that destination exists
                 if get_entity(config, connection) is None:
@@ -324,7 +356,7 @@ def check_connectivity(config) -> bool:
 def check_no_cycles(config) -> bool:
     '''
     Check if the given `config` contains no cycles.
-    True if no cycles. Else, false.
+    True, if no cycles. Else, false.
     '''
 
     graph = build_directed_graph(config)
@@ -345,24 +377,33 @@ def check_unique_ports(config) -> bool:
     ports: dict[int, Any]= {}
 
     for entity in config:
-        if config[entity]['type'] != "service":
+        if config[entity]['type'] == "router":
             continue
 
         # Port exposed by default
         if 'expose' in config[entity] and not config[entity]['expose']:
             continue
 
-        port = config[entity]['port']
-        if port in constants.TELEMETRY_PORTS:
-            utils.print_error(f"The port {port} is used for telemetry. Do not use it. "
-                              f"Requested for {entity}.")
-            return False
-        elif port in ports:
-            utils.print_error(f"This port is already used by {ports[port]}. Cannot "
-                              f"assign to {entity}.")
-            return False
+        entity_ports = []
+        if config[entity]["type"] == "service":
+            entity_ports.append(config[entity]['port'])
+        elif config[entity]["type"] == "external":
+            entity_ports.extend(config[entity]['ports'])
         else:
-            ports[port] = entity
+            utils.print_error(f"Entity {entity} has unexpected type {config[entity]['type']}")
+            return False
+
+        for port in entity_ports:
+            if port in constants.TELEMETRY_PORTS:
+                utils.print_error(f"The port {port} is used for telemetry. Do not use it. "
+                                f"Requested for {entity}.")
+                return False
+            elif port in ports:
+                utils.print_error(f"This port is already used by {ports[port]}. Cannot "
+                                f"assign to {entity}.")
+                return False
+            else:
+                ports[port] = entity
 
     return True
 
@@ -403,11 +444,13 @@ def extract_connections(entity_config) -> list:
     Return list of connections.
     '''
 
-    if entity_config["type"] == "router":
+    entity_type = entity_config["type"]
+
+    if entity_type in ("router", "external"):
         if "connections" in entity_config:
             conns = entity_config["connections"]
             return conns if conns is not None else []
-    elif entity_config["type"] == "service":
+    elif entity_type == "service":
         connections = []
         for endpoint in entity_config["endpoints"]:
             if "connections" in endpoint and endpoint["connections"] is not None:

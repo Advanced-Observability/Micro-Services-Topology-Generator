@@ -9,7 +9,7 @@ We tested our solution on the following Kubernetes distributions:
 
 > [!WARNING]
 > [Minikube](https://minikube.sigs.k8s.io/docs/) does **NOT** support IPv6 as of February 12, 2024.
-See [official Q&A](https://minikube.sigs.k8s.io/docs/faq/#does-minikube-support-ipv6) and [GitHub issue](https://github.com/kubernetes/minikube/issues/8535).
+> See [official Q&A](https://minikube.sigs.k8s.io/docs/faq/#does-minikube-support-ipv6) and [GitHub issue](https://github.com/kubernetes/minikube/issues/8535).
 
 ## Cluster configurations
 
@@ -37,7 +37,6 @@ Once you have cloned the patched Meshnet-CNI and launched your cluster, you need
 ```shell
 make docker
 make install
-kubectl apply -k manifests/base
 ```
 
 Finally, you can deploy the architecture on Kubernetes:

@@ -1,0 +1,9 @@
+  ${name}:
+    container_name: ${name}
+    hostname: ${name}
+    image: ${dockerImage}
+    restart: on-failure
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN

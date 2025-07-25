@@ -1,3 +1,10 @@
+#  __  __  _____ _______ _____
+# |  \/  |/ ____|__   __/ ____|
+# | \  / | (___    | | | |  __
+# | |\/| |\___ \   | | | | |_ |
+# | |  | |____) |  | | | |__| |
+# |_|  |_|_____/   |_|  \_____|
+
 SERVICE_DIR=service
 GEN_DIR=generator
 DOCKER_DIR=docker
@@ -12,7 +19,10 @@ default: ipv4_jaeger images
 # SERVICE BINARY
 # -----------------------------------------------
 
-$(SERVICE_DIR)/$(BINARY): $(SERVICE_DIR)/*.go
+.PHONY: service
+service: $(SERVICE_DIR)/$(BINARY)
+
+$(SERVICE_DIR)/$(BINARY): $(SERVICE_DIR)/*.go $(SERVICE_DIR)/go.mod $(SERVICE_DIR)/go.sum
 	@echo ""
 	@echo "Building executable for service"
 	CGO_ENABLED=0 go build -C $(SERVICE_DIR) -tags netgo -o $(BINARY)
@@ -200,7 +210,9 @@ k8s_clt_https: $(GEN_DIR)/*.py $(CONFIG)
 # UTILITIES
 # -----------------------------------------------
 
-.PHONY: clean start stop restart k8s_start k8s_stop kind_add_images
+.PHONY: clean start stop restart
+.PHONY: k8s_start k8s_stop kind_add_images
+.PHONY: mstg_help mstg_tests
 
 clean:
 	rm -f $(SERVICE_DIR)/$(BINARY) || true
@@ -211,8 +223,10 @@ clean:
 	docker rmi -f mstg_router_clt 2>/dev/null || true
 	docker rmi -f mstg_ioam_collector 2>/dev/null || true
 
+# commands.sh is executed for external images
 start:
 	docker compose up --force-recreate --remove-orphans --detach
+	@chmod +x commands.sh && bash commands.sh || true
 	@echo ""
 	@echo "All microservices are running."
 	@grep -q jaegertracing/all-in-one docker-compose.yml && echo "Go to http://localhost:16686 for the Jaeger UI." || true
@@ -225,7 +239,8 @@ stop:
 restart: stop start
 	@echo "Restarted"
 
-k8s_start:
+# commands.sh is executed for external images
+k8s_start: kind_add_images
 	kubectl apply -f k8s_configs
 	@echo "All pods and services have been deployed"
 
@@ -241,3 +256,9 @@ kind_add_images: images images_clt
 	kind load docker-image --name meshnet mstg_router
 	kind load docker-image --name meshnet mstg_router_clt
 	kind load docker-image --name meshnet mstg_ioam_collector
+
+mstg_help: $(GEN_DIR)/*.py
+	$(PYTHON) $(GEN_DIR)/generator.py --help
+
+mstg_tests: $(GEN_DIR)/*.py
+	cd $(GEN_DIR) && pytest

@@ -1,13 +1,14 @@
-'''
-Export the architecture to the configuration files
+"""
+Export the architecture to the configuration file
 for Docker Compose.
-'''
+"""
 
-import entities
-import architecture
-import exporter
 import utils
+import router
+import exporter
+import services
 import constants
+import architecture
 
 
 class ComposeExporter(exporter.Exporter):
@@ -26,14 +27,14 @@ class ComposeExporter(exporter.Exporter):
     def write_routers(self, file) -> None:
         '''Write all the routers into the given `file` as in a docker compose file.'''
         for entity in self.arch.entities:
-            if isinstance(entity, entities.Router):
+            if isinstance(entity, router.Router):
                 entity.export_compose(file)
                 file.write("\n")
 
     def write_services(self, file) -> None:
         '''Write all the services into the given `file` as in a docker compose file.'''
         for entity in self.arch.entities:
-            if isinstance(entity, entities.Service):
+            if isinstance(entity, services.Service):
                 entity.export_compose(file)
                 file.write("\n")
 
@@ -52,19 +53,29 @@ class ComposeExporter(exporter.Exporter):
 
             self.write_docker_networks(f)
 
-            # write all the services
+            # write all the entities
             f.write("services:\n")
-            if utils.topology_is_ipv4() and utils.is_using_jaeger():
-                f.write(constants.JAEGER_IPV4_SERVICE)
-            elif utils.is_using_jaeger():
-                f.write(constants.JAEGER_IPV6_SERVICE)
 
+            # write jaeger if used
+            if utils.is_using_jaeger():
+                f.write(constants.JAEGER_SERVICE)
+                if utils.topology_is_ipv4():
+                    f.write(constants.COMPOSE_JAEGER_IPV4)
+                else:
+                    f.write(constants.COMPOSE_JAEGER_IPV6)
+
+            # write ioam collector if clt
             if utils.is_using_clt():
                 f.write(constants.IOAM_COLLECTOR_SERVICE)
 
+            # write other entities
             f.write("\n")
             self.write_routers(f)
             self.write_services(f)
 
     def export(self):
+        # empty commands file
+        with open(constants.COMMANDS_FILE, "w", encoding="utf-8") as f:
+            f.write("#!/bin/bash\n\n")
+
         self.write_docker_compose()

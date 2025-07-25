@@ -1,10 +1,10 @@
 """
-Constants used in the generator.
+Constants used in MSTG.
 """
 
 import os
-from string import Template
 from pathlib import Path
+from string import Template
 
 
 def read_file(path: str) -> str:
@@ -15,9 +15,11 @@ def read_file(path: str) -> str:
 
 # --------------------------------------------------------------------------------------------------
 
-VERSION = "0.0.4"
+VERSION = "0.0.5"
 
 DEFAULT_CONFIG_FILE = "./config.yml"
+
+COMMANDS_FILE = "./commands.sh"
 
 # ------------------------------------ IOAM TRACE TYPE CONFIGURATION -------------------------------
 
@@ -44,47 +46,49 @@ IOAM_BIT22 = False
 
 # --------------------------------------- ENV. VARIABLES -------------------------------------------
 
+DEBUG_VAR_ENV = "DEBUG"
+HTTP_VER_ENV = "HTTP_VER"
+K8S_OUT_ENV = "K8S_OUT_ENV"
 CLT_ENABLE_ENV = "CLT_ENABLE"
 IP_VERSION_ENV = "IP_VERSION"
-HTTP_VER_ENV = "HTTP_VER"
-DEBUG_VAR_ENV = "DEBUG"
-JAEGER_ENABLE_ENV = "JAEGER_ENABLE"
-OUTPUT_FORMAT_ENV = "OUTPUT_FORMAT_ENV"
-K8S_OUT_ENV = "K8S_OUT_ENV"
-COMPOSE_OUT_ENV = "COMPOSE_OUT_ENV"
 IOAM_ENABLE_ENV = "IOAM_OUT_ENV"
+JAEGER_ENABLE_ENV = "JAEGER_ENABLE"
+COMPOSE_OUT_ENV = "COMPOSE_OUT_ENV"
+OUTPUT_FORMAT_ENV = "OUTPUT_FORMAT_ENV"
 
 # --------------------------------------- TEMPLATES -----------------------------------------------
 
-# network
+# -- network --
 
 NETWORK_NAME = "network_{}_{}"
 
-# compose
+# -- commands --
+TEMPLATE_CMD = "docker exec {} bash -c \'{}\'"
+TEMPLATE_CMD_KUBECTL = "kubectl exec {} -- bash -c \'{}\'"
+CMD_INLINE_SYSCTL = """for sInterface in /proc/sys/net/ipv6/conf/*; do name=$(basename $sInterface); sysctl -q -w net.ipv6.conf.$name.ioam6_enabled=1; sysctl -q -w net.ipv6.conf.$name.ioam6_id={}; done"""
+
+# -- compose --
+
 TEMPLATE_COMPOSE_FOLDER = os.path.join(Path(__file__).parent, "templates/compose")
+ROUTER_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "router-template.yml")))
+SERVICE_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "service-template.yml")))
+EXTERNAL_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "external-template.yml")))
+JAEGER_SERVICE = read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "jaeger-service.yml"))
 IOAM_COLLECTOR_SERVICE = read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "ioam-collector-ipv6.yml"))
+
 # ipv4
-JAEGER_IPV4_SERVICE = read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "jaeger-service-ipv4.yml"))
 NETWORK_IPV4_TEMPLATE = Template(
     read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "network-template-ipv4.yml")))
-ROUTER_IPV4_TEMPLATE = Template(
-    read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "router-template-ipv4.yml")))
-SERVICE_IPV4_TEMPLATE = Template(
-    read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "service-template-ipv4.yml")))
 TELEMETRY_IPV4_NETWORK = read_file(
     os.path.join(TEMPLATE_COMPOSE_FOLDER, "telemetry-network-ipv4.yml"))
+
 # ipv6
-JAEGER_IPV6_SERVICE = read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "jaeger-service-ipv6.yml"))
 NETWORK_IPV6_TEMPLATE = Template(
     read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "network-template-ipv6.yml")))
-ROUTER_IPV6_TEMPLATE = Template(
-    read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "router-template-ipv6.yml")))
-SERVICE_IPV6_TEMPLATE = Template(
-    read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "service-template-ipv6.yml")))
 TELEMETRY_IPV6_NETWORK = read_file(
     os.path.join(TEMPLATE_COMPOSE_FOLDER, "telemetry-network-ipv6.yml"))
 
-# kubernetes
+# -- kubernetes --
 
 TEMPLATE_FOLDER_K8S = os.path.join(Path(__file__).parent, "templates/kubernetes")
 TEMPLATE_K8S_POD = Template(read_file(os.path.join(TEMPLATE_FOLDER_K8S, "k8s-pod.yml")))
@@ -102,7 +106,7 @@ TEMPLATE_MESHNET_INTERFACE = Template(
 
 # --------------------------------------- SYSCTL ---------------------------------------------------
 
-# sysctl configuration for any entity if IOAM/CLT is used
+# IOAM/CLT in docker compose
 COMPOSE_SYSCTL_DEFAULTS = """
       - net.ipv6.ioam6_id=${ioam_id}
       - net.ipv6.conf.all.ioam6_id=${ioam_id}
@@ -111,7 +115,7 @@ COMPOSE_SYSCTL_DEFAULTS = """
       - net.ipv6.conf.default.ioam6_enabled=1
 """
 
-# sysctl configuration for any entity if IOAM/CLT is used
+# IOAM/CLT in k8s
 K8S_SYSCTL_DEFAULTS = """
       - name: net.ipv6.ioam6_id
         value: "${ioam_id}"
@@ -127,27 +131,33 @@ K8S_SYSCTL_DEFAULTS = """
 
 # --------------------------------------- IP ROUTE COMMANDS FOR IPv6 -------------------------------
 
-TEMPLATE_IP6_ROUTE_DIRECT_CONNECTION = "/sbin/ip -6 r a {} encap ioam6 trace prealloc type {} ns "\
-  "123 size {} dev eth{}"
-TEMPLATE_IP6_ROUTE_PATH = "/sbin/ip -6 r a {} encap ioam6 trace prealloc type {} ns 123 size {} "\
+IP6_ROUTE_DIRECT_IOAM = "/sbin/ip -6 r a {} encap ioam6 trace prealloc type {} ns "\
+  "123 size {} dev {}"
+IP6_ROUTE_PATH_IOAM = "/sbin/ip -6 r a {} encap ioam6 trace prealloc type {} ns 123 size {} "\
   "via {}"
-TEMPLATE_IP6_ROUTE_PATH_NO_IOAM = "/sbin/ip -6 r a {} via {}"
+IP6_ROUTE_PATH_VANILLA = "/sbin/ip -6 r a {} via {}"
 
 # --------------------------------------- IP ROUTE COMMANDS FOR IPv4 -------------------------------
 
 # never IOAM because IOAM works only for ipv6
-TEMPLATE_IP4_ROUTE_PATH = "/sbin/ip r a {} via {}"
+IP4_ROUTE_PATH_VANILLA = "/sbin/ip r a {} via {}"
 
 # --------------------------------------- COMMANDS -------------------------------------------------
 
 DROP_ICMP_REDIRECT = "iptables -A OUTPUT -p icmp --icmp-type 5 -j DROP && "\
   "iptables -A INPUT -p icmp --icmp-type 5 -j DROP"
+LAUNCH_SERVICE = "/usr/local/bin/service /etc/config.yml"
 ADD_IOAM_NAMESPACE = "/sbin/ip ioam namespace add 123"
+LAUNCH_INTERFACE_SCRIPT = "sh set_interfaces.sh"
+DELETE_DEFAULT_IPV6_ROUTE = "ip -6 r d default"
+DELETE_DEFAULT_IPV4_ROUTE = "ip r d default"
+LAUNCH_IOAM_AGENT = "/ioam-agent -i eth0"
+LAUNCH_ROUTER = "tail -f /dev/null"
 
 # --------------------------------------- FOR PARSING THE CONFIG -----------------------------------
 
 # Types of entities supported by the generator
-KNOWN_TYPES = ["service", "router"]
+KNOWN_TYPES = ["service", "router", "external"]
 
 # Fields shared by all types
 MANDATORY_COMMON_FIELDS = ["type"]
@@ -156,11 +166,15 @@ MANDATORY_COMMON_FIELDS = ["type"]
 SERVICE_FIELDS = ["port", "endpoints"]
 SERVICE_ENDPOINT_FIELDS = ["entrypoint", "psize"]
 
+# Fields for external container
+EXTERNAL_FIELDS = ["image", "ports", "connections"]
+
 # Ports used by telemtry
 TELEMETRY_PORTS = [1686, 14268, 4317, 4318, 7123]
 
 # fields for connections
 CONNECTION_ROUTER_MANDATORY_FIELDS = ["path"]
+CONNECTION_EXTERNAL_MANDATORY_FIELDS = CONNECTION_ROUTER_MANDATORY_FIELDS
 CONNECTION_SERVICE_MANDATORY_FIELDS = ["path", "url"]
 CONNECTION_IMPAIRMENTS = [
     "mtu", "buffer_size", "rate", "delay", "jitter", "loss",
@@ -168,11 +182,14 @@ CONNECTION_IMPAIRMENTS = [
 CONNECTION_OPTIONAL_FIELDS = ["timers"]
 CONNECTION_OPTIONAL_FIELDS.extend(CONNECTION_IMPAIRMENTS)
 
+# -- options and timers --
+
 # commands to modify the properties of the connections
-MTU_OPTION = "/sbin/ip link set dev eth{} mtu {}"
-BUFFER_SIZE_OPTION = "/sbin/ip link set dev eth{} txqueuelen {}"
+MTU_OPTION = "/sbin/ip link set dev {} mtu {}"
+BUFFER_SIZE_OPTION = "/sbin/ip link set dev {} txqueuelen {}"
+IMPAIRMENT_OPTION = "tc qdisc add dev {} root netem"
 MODIFY_IMPAIRMENT = "sleep {} && {}"
-MODIFY_IMPAIRMENT_DELETE_TC = "sleep {} && tc qdisc del dev eth{} root && {}"
+MODIFY_IMPAIRMENT_DELETE_TC = "sleep {} && tc qdisc del dev {} root && {}"
 
 # regex to match iproute2 `tc` specifications
 TC_PERCENTAGE_REGEX = r"\A([0-9]{1,2}|100)%\Z"
@@ -188,6 +205,25 @@ TIMER_TIME_REGEX = r"\A(?=.)(([0-9]*)(\.([0-9]+))?)\Z"
 
 PATH_CERTIFICATE = "/server.crt"
 PATH_KEY_FILE = "/server.key"
+
+# --------------------------------------- COMPOSE --------------------------------------------------
+
+COMPOSE_IPV4_NET_SPEC = Template("""
+      ${net_name}:
+        ipv4_address: ${ip}
+        driver_opts:
+          com.docker.network.endpoint.ifname: ${ifname}
+""")
+
+COMPOSE_IPV6_NET_SPEC = Template("""
+      ${net_name}:
+        ipv6_address: ${ip}
+        driver_opts:
+          com.docker.network.endpoint.ifname: ${ifname}
+""")
+
+COMPOSE_JAEGER_IPV4 = """        ipv4_address: 0.0.4.2"""
+COMPOSE_JAEGER_IPV6 = """        ipv6_address: ::1:0:0:0:2"""
 
 # --------------------------------------- KUBERNETES -----------------------------------------------
 
@@ -207,6 +243,26 @@ K8S_KUBECTL_GET_NODES_COUNT = "kubectl get nodes | wc -l"
 
 K8S_JAEGER_HOSTNAME = "jaeger-pod.jaeger-svc.default.svc.cluster.local"
 K8S_COLLECTOR_HOSTNAME = "ioam-collector-pod.ioam-collector-svc.default.svc.cluster.local:7123"
+
+K8S_POD_PORT = """
+        - containerPort: ${port}
+          hostPort: ${port}
+          protocol: TCP
+"""
+
+K8S_POD_CMD = """
+      args:
+        - sh
+        - -c
+        - {}
+"""
+
+K8S_SERVICE_PORT = """
+    - name: "${port}"
+      port: ${port}
+      targetPort: ${port}
+      nodePort: ${nodePort}
+"""
 
 # --------------------------------------- ASCII ART ------------------------------------------------
 

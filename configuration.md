@@ -71,6 +71,37 @@ The values in the template are the following:
 The specified `connections` need to be coherent with the `connections` for the other entities.
 For instance, if a service specified `r1->r2->db`, the router `r1` needs to specify `r2` as connection while router `r2` need to specify `db`.
 
+### Using an external container
+
+Since v0.0.5, MSTG allows the usage of existing Docker containers.
+
+The following template can be used to integrate an existing Docker container in the generated architecture.
+
+```yml
+frontend:
+  type: external
+  image: <dockerImage>
+  ports:
+    - <port>
+  connections:
+    - path: <path>
+```
+
+The values in the template are the following:
+- `dockerImage` is the name of the Docker image, which **MUST** be available on the host;
+- `port` is a port to be opened for the container. The container can have multiple open ports;
+- `path`is a connection as specified for a router. The container can have multiple connections.
+
+> [!WARNING]
+> This functionality comes with some additional requirements:
+> - The image must be available on the host. The generated configurations will **not** pull from Docker hub;
+> - The command `ip` must be available in the container in order to configure the routes;
+> - If you decide to use IOAM, the command `sysctl` must be available in the container;
+> - If you decide to use the network options, the command `tc` must be available in the container.
+
+> [!CAUTION]
+> Due to the requirements imposed by CLT, one should refrain from using CLT with existing Docker containers.
+
 ### Network options
 
 Network parameters can be configured on the connections between entities, they must be added in the connection description. The available parameter fields are:

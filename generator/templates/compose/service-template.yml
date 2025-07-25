@@ -1,0 +1,18 @@
+  ${name}:
+    container_name: ${name}
+    hostname: ${name}
+    image: ${dockerImage}
+    command: sh -c "${commands}"
+    restart: on-failure
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    environment:
+      - SERVICE_NAME=${name}
+      - IOAM_COLLECTOR=ioam-collector:7123
+      - CLT_ENABLE=${CLT_ENABLE}
+      - IOAM_ENABLE=${IOAM_ENABLE}
+      - JAEGER_ENABLE=${JAEGER_ENABLE}
+      - HTTP_VERSION=${HTTP_VER}
+      - IP_VERSION=${IP_VERSION}
