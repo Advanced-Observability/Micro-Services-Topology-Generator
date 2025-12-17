@@ -15,7 +15,7 @@ def read_file(path: str) -> str:
 
 # --------------------------------------------------------------------------------------------------
 
-VERSION = "0.0.8"
+VERSION = "0.0.9"
 
 DEFAULT_CONFIG_FILE = "./config.yml"
 
@@ -65,8 +65,9 @@ SWITCH_NET_NAME = "network_switch_{}"
 
 # -- commands --
 
-TEMPLATE_CMD = "docker exec {} sh -c \'{}\'"
-TEMPLATE_CMD_KUBECTL = "kubectl exec {} -- bash -c \'{}\'"
+DOCKER_CMD = "docker exec {} sh -c \'{}\'"
+DOCKER_CMD_BACKGROUND = "docker exec -d {} sh -c \'{}\'"
+KUBECTL_CMD = "kubectl exec {} -- bash -c \'{}\'"
 CMD_INLINE_SYSCTL = """for sInterface in /proc/sys/net/ipv6/conf/*; do name=$(basename $sInterface); sysctl -q -w net.ipv6.conf.$name.ioam6_enabled=1; sysctl -q -w net.ipv6.conf.$name.ioam6_id={}; done"""
 
 # -- compose --
@@ -212,7 +213,7 @@ TELEMETRY_PORTS = [1686, 14268, 4317, 4318, 7123]
 CONNECTION_ROUTER_MANDATORY_FIELDS = ["path"]
 CONNECTION_EXTERNAL_MANDATORY_FIELDS = CONNECTION_ROUTER_MANDATORY_FIELDS
 CONNECTION_FIREWALL_MANDATORY_FIELDS = CONNECTION_ROUTER_MANDATORY_FIELDS
-CONNECTION_SW_MANDATORY_FIELDS = ["path"]
+CONNECTION_SW_MANDATORY_FIELDS = CONNECTION_ROUTER_MANDATORY_FIELDS
 CONNECTION_SERVICE_MANDATORY_FIELDS = ["path", "url"]
 CONNECTION_IMPAIRMENTS = [
     "mtu", "buffer_size", "rate", "delay", "jitter", "loss",

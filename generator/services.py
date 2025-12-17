@@ -16,20 +16,28 @@ import kubernetes
 class Service(entities.Entity):
     """Represent a microservice in the architecture."""
 
-    def __init__(self, name: str, entity, external: bool, image_name: str):
-        super().__init__(name, None)
+    def __init__(self, name: str, config, external: bool, image_name: str):
+        """
+        Create a microservice.
+
+        :param name: Name of the microservice.
+        :param config: Loaded YAML configuration of the service.
+        :param external: Using external container image.
+        :param image_name: Name of the Docker image to use.
+        """
+        super().__init__(name, config, None)
 
         self.external = external
         self.image_name = image_name
 
         if not self.external:
-            self.ports = [entity["port"]]
+            self.ports = [config["port"]]
         else:
-            self.ports = entity["ports"]
+            self.ports = config["ports"]
 
         # Port exposed by default
-        if "expose" in entity:
-            self.expose = entity["expose"]
+        if "expose" in config:
+            self.expose = config["expose"]
         else:
             self.expose = True
 
@@ -44,33 +52,27 @@ class Service(entities.Entity):
             f"\n\t- image: {self.image_name}"\
             f"\n\t- {super().pretty()}"
 
-    def export_commands(self, compose: bool) -> str:
+    def export_commands(self) -> str:
         """Generate one line combining all commands."""
 
         if utils.output_is_k8s():
             # need to drop icmp redirect (type 5) to prevent modification of the routing
-            self.commands.append(constants.DROP_ICMP_REDIRECT)
+            self.add_command(constants.DROP_ICMP_REDIRECT)
 
         if utils.is_using_ioam_only() or utils.is_using_clt():
-            self.commands.append(constants.ADD_IOAM_NAMESPACE)
+            self.add_command(constants.ADD_IOAM_NAMESPACE)
             if not self.external:
-                self.commands.append(constants.LAUNCH_INTERFACE_SCRIPT)
+                self.add_command(constants.LAUNCH_INTERFACE_SCRIPT)
             else:
-                self.commands.append(constants.CMD_INLINE_SYSCTL.format(self.ioam_id))
+                self.add_command(constants.CMD_INLINE_SYSCTL.format(self.ioam_id))
 
         if utils.is_using_clt():
-            self.commands.append(constants.LAUNCH_IOAM_AGENT)
+            self.add_command(constants.LAUNCH_IOAM_AGENT)
 
-        self.commands.append(constants.DELETE_DEFAULT_IPV4_ROUTE)
-        self.commands.append(constants.DELETE_DEFAULT_IPV6_ROUTE)
+        self.add_command(constants.DELETE_DEFAULT_IPV4_ROUTE)
+        self.add_command(constants.DELETE_DEFAULT_IPV6_ROUTE)
 
-        if not self.external:
-            self.commands.append(constants.LAUNCH_SERVICE)
-
-        if compose:
-            return self.cmds_combined()[:-1]
-
-        return self.cmds_combined(True)[:-1]
+        return utils.combine_commands(list(self.commands), "&")
 
     def export_compose(self, file) -> None:
         """Export the service in the given docker compose file."""
@@ -81,15 +83,11 @@ class Service(entities.Entity):
                 "dockerImage": self.image_name
             }
             file.write(constants.EXTERNAL_TEMPLATE.substitute(mappings))
-
-            with open(constants.COMMANDS_FILE, "a", encoding="utf-8") as f:
-                f.write(constants.TEMPLATE_CMD.format(self.name, self.export_commands(True)))
-                f.write("\n")
         else:
             # write template
             mappings = {
                 "name": self.name,
-                "commands": self.export_commands(True),
+                "commands": utils.export_single_command(constants.LAUNCH_SERVICE),
                 "CLT_ENABLE": os.environ[constants.CLT_ENABLE_ENV],
                 "IOAM_ENABLE": os.environ[constants.IOAM_ENABLE_ENV],
                 "JAEGER_ENABLE": os.environ[constants.JAEGER_ENABLE_ENV],
@@ -123,8 +121,12 @@ class Service(entities.Entity):
         # write extra hosts to prevent conflict in dns
         if len(self.extra_hosts) > 0:
             file.write("    extra_hosts:\n")
-            for host in self.extra_hosts:
-                file.write(f"      - \"{host[0]}:{host[1]}\"\n")
+            for host, ip in self.extra_hosts.items():
+                file.write(f"      - \"{host}:{ip}\"\n")
+
+        # export commands
+        self.export_commands()
+        self.generate_commands_file()
 
     def export_compose_networks(self, file) -> None:
         """Export network settings in Docker compose."""
@@ -188,15 +190,14 @@ class Service(entities.Entity):
         ports = ""
         for port in self.ports:
             ports += Template(constants.K8S_POD_PORT).substitute({"port": port})
-            ports += "\n"
 
         cmd = ""
         if not self.external:
-            cmd = constants.K8S_POD_CMD.format(self.export_commands(False))
+            cmd = constants.K8S_POD_CMD.format(self.export_commands() + f" & {utils.export_single_command(constants.LAUNCH_SERVICE)}")
         else:
             with open(constants.COMMANDS_FILE, "a", encoding="utf-8") as f:
-                cmds = self.export_commands(False)
-                f.write(constants.TEMPLATE_CMD_KUBECTL.format(f"{self.name}-pod", cmds))
+                cmds = self.export_commands()
+                f.write(constants.KUBECTL_CMD.format(f"{self.name}-pod", cmds) + " &")
                 f.write("\n")
 
         # pod configuration
@@ -234,11 +235,11 @@ class Service(entities.Entity):
         # write extra hosts
         if len(self.extra_hosts) > 0:
             f.write("  hostAliases:")
-            for host in self.extra_hosts:
+            for host, ip in self.extra_hosts.items():
                 f.write(f"""
-    - ip: \"{host[1]}\"
+    - ip: \"{ip}\"
       hostnames:
-      - \"{host[0]}\"""")
+      - \"{host}\"""")
 
         f.close()
 
@@ -250,7 +251,6 @@ class Service(entities.Entity):
             ports += Template(constants.K8S_SERVICE_PORT).substitute(
                 {"port": port, "nodePort": kubernetes.Kubernetes.next_node_port()}
             )
-            ports += "\n"
 
         service_config = {
             "name": f"{self.name}-svc",

@@ -1,0 +1,24 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      psize: 512
+      connections:
+        - path: s1->r1->db
+          url: /
+s1:
+  type: switch
+  connections:
+    - path: frontend
+    - path: r1
+r1:
+  type: router
+  connections:
+    - path: db
+db:
+  type: service
+  port: 10001
+  endpoints:
+    - entrypoint: /
+      psize: 128

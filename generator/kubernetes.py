@@ -34,41 +34,41 @@ class Kubernetes():
         self.pods_ips = iter(self.pods_net.hosts())
 
     def __str__(self) -> str:
-        return f"Number of nodes: {self.nb_nodes} - Service IP range: {self.service_ip_range} - "\
-                f"Pods IP range: {self.pods_ip_range} - Service network: {self.services_net} - "\
-                f"Pod network: {self.pods_net}"
+        return self.string(" - ")
 
     def pretty(self) -> str:
-        """Pretty print the Kubernetes class."""
-        return f"Kubernetes:\n\tNumber of nodes: {self.nb_nodes}\n\tService IP range: "\
-               f"{self.service_ip_range}\n\tPods IP range: {self.pods_ip_range}\n\tService "\
-               f"network: {self.services_net}\n\tPod network: {self.pods_net}"
+        return "Kubernetes:\n\t- " + self.string("\n\t- ")
+
+    def string(self, separator) -> str:
+        """String representation of Kubernetes class."""
+        return f"Number of nodes: {self.nb_nodes}"\
+                f"{separator}Service IP range: {self.service_ip_range}"\
+                f"{separator}Pods IP range: {self.pods_ip_range}"\
+                f"{separator}Service network: {self.services_net}"\
+                f"{separator}Pod network: {self.pods_net}"
 
     @staticmethod
     def next_node_port() -> int:
         """Return next node port usable."""
         if Kubernetes.node_port_next > Kubernetes.node_port_max:
             raise RuntimeError("Reached upper bound of node port")
+
         p = Kubernetes.node_port_next
         Kubernetes.node_port_next += 1
-
         return p
 
     @staticmethod
     def check_kubectl() -> bool:
         """Check if `kubectl` is available and its configuration."""
-        check_exec = subprocess.run(constants.K8S_KUBECTL_CHECK_EXEC, shell=True,
-                                    stdout=subprocess.PIPE, check=False)
+        check_exec = subprocess.run(constants.K8S_KUBECTL_CHECK_EXEC, shell=True, stdout=subprocess.PIPE, check=False)
         if check_exec.returncode != 0:
             raise RuntimeError("kubectl is required")
 
-        check_config = subprocess.run(constants.K8S_KUBECTL_GET_CONFIG, shell=True,
-                                      stdout=subprocess.PIPE, check=False)
+        check_config = subprocess.run(constants.K8S_KUBECTL_GET_CONFIG, shell=True, stdout=subprocess.PIPE, check=False)
         if check_config.returncode != 0:
             raise RuntimeError("Error when checking kubectl config")
 
-        check_cluster = subprocess.run(constants.K8S_KUBECTL_GET_CLUSTER_INFO, shell=True,
-                                       stdout=subprocess.PIPE, check=False)
+        check_cluster = subprocess.run(constants.K8S_KUBECTL_GET_CLUSTER_INFO, shell=True, stdout=subprocess.PIPE, check=False)
         if check_cluster.returncode != 0:
             raise RuntimeError("Error when checking the cluster")
 
@@ -81,13 +81,11 @@ class Kubernetes():
     @staticmethod
     def check_meshnet_cni() -> bool:
         """Check if Meshnet-CNI is properly running on the cluster."""
-        check_meshnet = subprocess.run(constants.K8S_CHECK_MESHNET, shell=True,
-                                       stdout=subprocess.PIPE, check=False)
+        check_meshnet = subprocess.run(constants.K8S_CHECK_MESHNET, shell=True, stdout=subprocess.PIPE, check=False)
         if check_meshnet.returncode != 0:
             raise RuntimeError("Unable to check status of Meshnet-CNI")
 
-        decoded = check_meshnet.stdout.decode("utf-8")
-        decoded = decoded.strip()
+        decoded = check_meshnet.stdout.decode("utf-8").strip()
         lines = decoded.split('\n')
         if len(lines) < 2:  # line[0] is header of `kubectl`
             raise RuntimeError("Unexpected length for check_meshnet_cni")
@@ -105,8 +103,7 @@ class Kubernetes():
     def get_service_ip_range() -> str:
         """Return the range of IP addresses for services."""
 
-        res = subprocess.run(constants.K8S_GET_SERVICE_IP_RANGE_CMD, shell=True,
-                             stdout=subprocess.PIPE, check=False)
+        res = subprocess.run(constants.K8S_GET_SERVICE_IP_RANGE_CMD, shell=True, stdout=subprocess.PIPE, check=False)
         if res.returncode != 0:
             raise RuntimeError("Unable to get the range of IP addresses for services")
 
@@ -116,8 +113,7 @@ class Kubernetes():
     def get_pod_ip_range() -> str:
         """Return the range of IP addresses for pods."""
 
-        res = subprocess.run(constants.K8S_GET_PODS_IP_RANGE_CMD, shell=True,
-                             stdout=subprocess.PIPE, check=False)
+        res = subprocess.run(constants.K8S_GET_PODS_IP_RANGE_CMD, shell=True, stdout=subprocess.PIPE, check=False)
         if res.returncode != 0:
             raise RuntimeError("Unable to get the range of IP addresses for pods")
 
@@ -127,8 +123,7 @@ class Kubernetes():
     def get_nb_nodes() -> int:
         """Return the number of nodes in the Kubernetes clsuster."""
 
-        check_nodes = subprocess.run(constants.K8S_KUBECTL_GET_NODES_COUNT, shell=True,
-                                     stdout=subprocess.PIPE, check=False)
+        check_nodes = subprocess.run(constants.K8S_KUBECTL_GET_NODES_COUNT, shell=True, stdout=subprocess.PIPE, check=False)
         if check_nodes.returncode != 0:
             raise RuntimeError("Error when checking the nodes in the cluster")
 

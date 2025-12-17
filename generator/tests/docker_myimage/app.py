@@ -24,4 +24,4 @@ def proxy_request():
 
 if __name__ == '__main__':
     # Make sure you're running as root/admin to bind to port 80
-    app.run(host='0.0.0.0', port=80)
+    app.run(host='::', port=80)

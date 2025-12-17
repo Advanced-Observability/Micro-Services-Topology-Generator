@@ -18,7 +18,7 @@ import (
 
 const (
 	DEFAULT_CONFIG_PATH     = "../config.yml"                                                  // Default path to config file
-	VERSION                 = "0.0.8"                                                          // Version of the service
+	VERSION                 = "0.0.9"                                                          // Version of the service
 	DEFAULT_PACKET_SIZE     = 64                                                               // Default packet size in bytes
 	DEFAULT_JAEGER_HOSTNAME = "jaeger"                                                         // Default Jaeger hostname
 	MAX_LEN_TRACE_RES       = 12                                                               // Maximum number of characters from random string into OTEL

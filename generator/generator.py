@@ -34,7 +34,7 @@ def gen_config_files(args=None):
     config = config_parser.parse_config(conf_file)
     utils.print_success("Extracted config.")
 
-    print("\nBuilding architecture based on config file...\n")
+    print("\nBuilding the architecture based on the configuration file...\n")
     arch = architecture.Architecure(conf_file, config)
     if "--time" not in sys.argv:
         nx.draw_spring(

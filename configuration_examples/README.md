@@ -99,3 +99,17 @@ Same as [2_1_router_inline.yml](./2_1_router_inline.yml) using an external image
 ## Example 13 ([13_switch_vlan.yml](./13_switch_vlan.yml))
 
 Same as [12_switch.yml](./12_switch.yml) but with VLAN.
+
+## Example 14 ([14_switch_inline.yml](./14_switch_inline.yml))
+
+2 switches inline.
+
+![Diagram fourteenth example](./diagrams/example_14.png)
+
+## Example 15 ([15_switch_router.yml](./15_switch_router.yml))
+
+![Diagram fifteenth example](./diagrams/example_15.png)
+
+## Example 16 ([16_switch_router_switch.yml](./16_switch_router_switch.yml))
+
+![Diagram sixteenth example](./diagrams/example_16.png)

@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 RUN apt update
-RUN apt install -y iproute2 curl procps traceroute iputils-ping dnsutils net-tools iptables
+RUN apt install -y iproute2 curl wget procps traceroute iputils-ping dnsutils net-tools iptables
 
 # Set working directory
 WORKDIR /app

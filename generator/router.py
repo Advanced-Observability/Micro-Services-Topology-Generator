@@ -16,8 +16,8 @@ import kubernetes
 class Router(entities.Entity):
     """Represent a router in the architecture."""
 
-    def __init__(self, name: str):
-        super().__init__(name, None)
+    def __init__(self, name: str, config):
+        super().__init__(name, config, None)
 
     def __str__(self) -> str:
         return f"Router: {self.name} - {super().__str__()}"
@@ -26,25 +26,21 @@ class Router(entities.Entity):
         """Indented string describing the object"""
         return f"Router: {self.name}\n\t- {super().pretty()}"
 
-    def export_commands(self, compose: bool) -> str:
+    def export_commands(self) -> str:
         """Generate one line combining all commands."""
 
         if utils.is_using_ioam_only() or utils.is_using_clt():
-            self.commands.append(constants.LAUNCH_INTERFACE_SCRIPT)
-            self.commands.append(constants.ADD_IOAM_NAMESPACE)
+            self.add_command(constants.LAUNCH_INTERFACE_SCRIPT)
+            self.add_command(constants.ADD_IOAM_NAMESPACE)
 
         if utils.output_is_k8s():
             # need to drop icmp redirect (type 5) to prevent modification of the routing
-            self.commands.append(constants.DROP_ICMP_REDIRECT)
+            self.add_command(constants.DROP_ICMP_REDIRECT)
 
-        self.commands.append(constants.DELETE_DEFAULT_IPV4_ROUTE)
-        self.commands.append(constants.DELETE_DEFAULT_IPV6_ROUTE)
-        self.commands.append(constants.LAUNCH_BACKGROUND_PROCESS)
+        self.add_command(constants.DELETE_DEFAULT_IPV4_ROUTE)
+        self.add_command(constants.DELETE_DEFAULT_IPV6_ROUTE)
 
-        if compose:
-            return self.cmds_combined()[:-1]
-
-        return self.cmds_combined(True)[:-1]
+        return utils.combine_commands(list(self.commands), "&")
 
     def export_compose_networks(self, file) -> None:
         """Export network settings in Docker compose."""
@@ -83,7 +79,7 @@ class Router(entities.Entity):
         mappings = {
             "name": self.name,
             "dockerImage": "mstg_router" if not utils.is_using_clt() else "mstg_router_clt",
-            "commands": self.export_commands(True),
+            "commands": utils.export_single_command(constants.LAUNCH_BACKGROUND_PROCESS)
         }
         file.write(constants.ROUTER_TEMPLATE.substitute(mappings))
 
@@ -100,6 +96,10 @@ class Router(entities.Entity):
         # write networks
         self.export_compose_networks(file)
 
+        # exporting commands
+        self.export_commands()
+        self.generate_commands_file()
+
     def export_k8s(self):
         """Export the router to Kubernetes configuration files."""
 
@@ -110,13 +110,15 @@ class Router(entities.Entity):
     def export_k8s_pod(self, port: int):
         """Export the router to a Kubernetes pod using the given `port`."""
 
+        cmd = self.export_commands() + f" & {utils.export_single_command(constants.LAUNCH_BACKGROUND_PROCESS)}"
+
         # pod configuration
         pod_config = {
             "name": f"{self.name}-pod",
             "serviceName": f"{self.name}-svc",
             "shortName": self.name,
             "image": "mstg_router" if not utils.is_using_clt() else "mstg_router_clt",
-            "cmd": constants.K8S_POD_CMD.format(self.export_commands(False)),
+            "cmd": constants.K8S_POD_CMD.format(cmd),
             "CLT_ENABLE": f"\"{os.environ[constants.CLT_ENABLE_ENV]}\"",
             "JAEGER_HOSTNAME": constants.K8S_JAEGER_HOSTNAME,
             "JAEGER_ENABLE": f"\"{os.environ[constants.JAEGER_ENABLE_ENV]}\"",

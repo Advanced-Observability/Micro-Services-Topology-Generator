@@ -22,7 +22,7 @@ frontend:
             duration: 20
             newValue: 1500
           - option: loss
-            start: 5
+            start: 50
             duration: 30
             newValue: 100%
 r1:

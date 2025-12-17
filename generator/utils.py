@@ -113,12 +113,46 @@ def check_arguments(args) -> str:
 
     return args.config
 
-def get_interface_name(id: int, name: str) -> str:
+
+def get_interface_name(iface: int, name: str) -> str:
     """Get the name of an interface."""
     if output_is_k8s():
-        return f"eth{id}"
+        return f"eth{iface}"
 
-    return f"eth{id}_{name}"
+    return f"eth{iface}_{name}"
+
+
+def generate_command(cmd: str, entity: str, background=False):
+    """
+    Generate command to execute `cmd`.
+
+    :param cmd: Command to execute.
+    :param entity: Entity in which to execute.
+    :param background: Execute command in background.
+    """
+
+    if output_is_compose() and background:
+        return constants.DOCKER_CMD_BACKGROUND.format(entity, cmd)
+    if output_is_compose():
+        return constants.DOCKER_CMD.format(entity, cmd)
+    return cmd
+
+
+def export_single_command(cmd: str):
+    """Export a given single command `cmd`."""
+
+    # sleep to be sure that interfaces had time to be configured properly by meshnet cni
+    return f"({cmd})" if output_is_compose() else f"(sleep 20 && {cmd})"
+
+
+def combine_commands(cmds: list[str], separator="&") -> str:
+    """
+    Combine all commands in a single one.
+
+    :param cmds: List of commands to combine.
+    :param separator: Separator to use between the commands.
+    """
+    return separator.join(f" {export_single_command(cmd)} " for cmd in cmds)
 
 
 def output_is_compose() -> bool:
@@ -175,11 +209,12 @@ def topology_is_https() -> bool:
     """True if the topology is using HTTPS."""
     return os.environ[constants.HTTP_VER_ENV] == "https"
 
-def convert_net_id_to_mac_addresses(id: int) -> list[str]:
-    '''Convert the given network `id` to 2 mac addresses.'''
+
+def convert_net_id_to_mac_addresses(identifier: int) -> list[str]:
+    '''Convert the given network `identifier` to 2 mac addresses.'''
 
     # convert to hex without 0x
-    prefix = hex(id)[2:]
+    prefix = hex(identifier)[2:]
     size = len(prefix)
 
     # ensure 10 bytes of prefix and convert to str
@@ -189,6 +224,7 @@ def convert_net_id_to_mac_addresses(id: int) -> list[str]:
     # use addr 01 and 02 of calculated prefix
     macs = [f'{mac_prefix}:01', f'{mac_prefix}:02']
     return macs
+
 
 def convert_net_id_to_ip6_net(prefix: int) -> ipaddress.IPv6Network:
     '''
@@ -281,6 +317,7 @@ def filter_cmd(option: str, cmd: str, interface: str) -> bool:
         return True
     return False
 
+
 def build_ioam_trace_type() -> str:
     """Generate ioam trace type as hex based on configuration."""
     trace_type = bitarray.bitarray(24)
@@ -355,6 +392,7 @@ def size_ioam_trace() -> int:
         pass
 
     return size
+
 
 def check_ovs_kernel_module() -> bool:
     '''Check whether the kernel module for OVS is properly loaded.'''

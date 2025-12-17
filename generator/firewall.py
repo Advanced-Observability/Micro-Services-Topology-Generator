@@ -38,7 +38,7 @@ class FirewallRule():
 
     def pretty(self) -> str:
         """Pretty print the rule."""
-        return self.__str__()
+        return str(self)
 
     def export_rule(self) -> str:
         """Export a rule as a iptables command."""
@@ -68,7 +68,7 @@ class FirewallRule():
 
         return cmd
 
-def parse_rule(rule: Any):
+def parse_rule(rule: Any) -> FirewallRule:
     """Parse rule from YML."""
 
     fw_rule = FirewallRule()
@@ -102,9 +102,8 @@ class Firewall(entities.Entity):
     """Represent a firewall in the architecture."""
 
     def __init__(self, name, config):
-        super().__init__(name, None)
-        self.rules : list[FirewallRule] = []
-        self.config = config
+        super().__init__(name, config, None)
+        self.rules: list[FirewallRule] = []
         self.default = ""
         self.configure_firewall()
 
@@ -114,10 +113,12 @@ class Firewall(entities.Entity):
     def pretty(self):
         """Indented string describing the object."""
 
-        rules = "\n\t\t- " + "\n\t\t- ".join(self.rules)
+        rules = ""
+        for rule in self.rules:
+            rules+=f"\n\t\t- {rule}"
 
         return f"Firewall: {self.name}"\
-                f"\n\t- rules: {rules}"\
+                f"\n\t- Rules: {rules}"\
                 f"\n\t- {super().pretty()}"
 
     def configure_firewall(self) -> None:
@@ -129,33 +130,25 @@ class Firewall(entities.Entity):
 
         if "rules" in self.config and self.config["rules"] is not None:
             for rule in self.config["rules"]:
-                self.add_rule(parse_rule(rule))
+                self.rules.append(parse_rule(rule))
 
-    def add_rule(self, rule: FirewallRule) -> None:
-        """Add a rule to the firewall."""
-        self.rules.append(rule)
-
-    def export_commands(self, compose: bool) -> str:
+    def export_commands(self) -> str:
         """Generate all commands required to configure the firewall."""
         if utils.output_is_k8s():
-            self.commands.append(constants.DROP_ICMP_REDIRECT)
+            self.add_command(constants.DROP_ICMP_REDIRECT)
 
         if utils.topology_is_ipv4():
-            self.commands.append(constants.IPTABLES_DEFAULT_ROUTE.format(self.default.upper()))
+            self.add_command(constants.IPTABLES_DEFAULT_ROUTE.format(self.default.upper()))
         else:
-            self.commands.append(constants.IP6TABLES_DEFAULT_ROUTE.format(self.default.upper()))
+            self.add_command(constants.IP6TABLES_DEFAULT_ROUTE.format(self.default.upper()))
 
         for rule in self.rules:
-            self.commands.append(rule.export_rule())
+            self.add_command(rule.export_rule())
 
-        self.commands.append(constants.DELETE_DEFAULT_IPV4_ROUTE)
-        self.commands.append(constants.DELETE_DEFAULT_IPV6_ROUTE)
-        self.commands.append(constants.LAUNCH_BACKGROUND_PROCESS)
+        self.add_command(constants.DELETE_DEFAULT_IPV4_ROUTE)
+        self.add_command(constants.DELETE_DEFAULT_IPV6_ROUTE)
 
-        if compose:
-            return self.cmds_combined()[:-1]
-
-        return self.cmds_combined(True)[:-1]
+        return utils.combine_commands(list(self.commands), "&")
 
     def export_compose_networks(self, file) -> None:
         """Export network settings in Docker compose."""
@@ -194,7 +187,7 @@ class Firewall(entities.Entity):
         mappings = {
             "name": self.name,
             "dockerImage": "mstg_fw",
-            "commands": self.export_commands(True)
+            "commands": utils.export_single_command(constants.LAUNCH_BACKGROUND_PROCESS)
         }
         file.write(constants.FIREWALL_TEMPLATE.substitute(mappings))
 
@@ -210,8 +203,12 @@ class Firewall(entities.Entity):
         # write extra hosts to prevent conflict in dns
         if len(self.extra_hosts) > 0:
             file.write("    extra_hosts:\n")
-            for host in self.extra_hosts:
-                file.write(f"      - \"{host[0]}:{host[1]}\"\n")
+            for host, ip in self.extra_hosts.items():
+                file.write(f"      - \"{host}:{ip}\"\n")
+
+        # exporting commands
+        self.export_commands()
+        self.generate_commands_file()
 
     def export_k8s(self) -> None:
         """Export the firewall to Kubernetes configuration files."""
@@ -223,13 +220,15 @@ class Firewall(entities.Entity):
     def export_k8s_pod(self, port: int):
         """Export the firewall to a Kubernetes pod using the given `port`."""
 
+        cmd = self.export_commands() + f"& {utils.export_single_command(constants.LAUNCH_BACKGROUND_PROCESS)}"
+
         # pod configuration
         pod_config = {
             "name": f"{self.name}-pod",
             "serviceName": f"{self.name}-svc",
             "shortName": self.name,
             "image": "mstg_fw",
-            "cmd": constants.K8S_POD_CMD.format(self.export_commands(False)),
+            "cmd": constants.K8S_POD_CMD.format(cmd),
             "CLT_ENABLE": f"\"{os.environ[constants.CLT_ENABLE_ENV]}\"",
             "JAEGER_HOSTNAME": constants.K8S_JAEGER_HOSTNAME,
             "JAEGER_ENABLE": f"\"{os.environ[constants.JAEGER_ENABLE_ENV]}\"",
@@ -249,11 +248,11 @@ class Firewall(entities.Entity):
             # write extra hosts
             if len(self.extra_hosts) > 0:
                 f.write("  hostAliases:")
-                for host in self.extra_hosts:
+                for host, ip in self.extra_hosts.items():
                     f.write(f"""
-    - ip: \"{host[1]}\"
+    - ip: \"{ip}\"
       hostnames:
-      - \"{host[0]}\"""")
+      - \"{host}\"""")
 
     def export_k8s_service(self, port: int):
         """Export the router to a Kubernetes service using the given `port`."""

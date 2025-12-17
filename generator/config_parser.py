@@ -76,6 +76,8 @@ def check_config(config) -> bool:
                 if not utils.check_ovs_kernel_module():
                     raise RuntimeError("Missing openvswitch kernel module!")
                 ovs_module_checked = True
+            if utils.output_is_k8s():
+                raise RuntimeError("Switches cannot be exported to Kubernetes")
             if not check_switch_fields(entity, config[entity]):
                 return False
         else:
@@ -186,6 +188,7 @@ def check_service_fields(name: str, entity) -> bool:
 
     return True
 
+
 def check_firewall_fields(name: str, entity) -> bool:
     '''
     Check if the given `entity` with the given `name` has all the fields
@@ -214,6 +217,7 @@ def check_firewall_fields(name: str, entity) -> bool:
 
     return True
 
+
 def check_switch_fields(name: str, entity) -> bool:
     '''
     Check if the given `entity` with the given `name` has all the fields
@@ -230,6 +234,7 @@ def check_switch_fields(name: str, entity) -> bool:
         return False
 
     return True
+
 
 def check_impairments(entity, connection, field) -> bool:
     """Check impariments specified in connections."""
