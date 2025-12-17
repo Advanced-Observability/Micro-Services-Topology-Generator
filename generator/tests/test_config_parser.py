@@ -132,7 +132,7 @@ def test_check_connectivity(capsys):
             '--clt', '--ip', '6', '--ioam', '--jaeger'
         ])
     captured = capsys.readouterr()
-    assert "Last hop" in captured.out and "must be a service" in captured.out, "Unexpected output"
+    assert "Last hop" in captured.out and "must be a end host" in captured.out, "Unexpected output"
 
     # direct connection: neighbour must exist
     with pytest.raises(RuntimeError):

@@ -38,7 +38,7 @@ class Router(entities.Entity):
 
         self.commands.append(constants.DELETE_DEFAULT_IPV4_ROUTE)
         self.commands.append(constants.DELETE_DEFAULT_IPV6_ROUTE)
-        self.commands.append(constants.LAUNCH_ROUTER)
+        self.commands.append(constants.LAUNCH_BACKGROUND_PROCESS)
 
         if compose:
             return self.cmds_combined()[:-1]

@@ -67,11 +67,14 @@ def check_config(config) -> bool:
         elif entity_type == "external":
             if not check_external_fields(entity, config[entity]):
                 return False
+        elif entity_type == "firewall":
+            if not check_firewall_fields(entity, config[entity]):
+                return False
         else:
             utils.print_error(f"Entity {entity} has unknown type {entity_type}")
             return False
 
-    utils.print_info("passing check service and router fields")
+    utils.print_info("passing check entity-specific fields")
 
     # Check that all the connections are possible
     if not check_connectivity(config):
@@ -175,6 +178,34 @@ def check_service_fields(name: str, entity) -> bool:
 
     return True
 
+def check_firewall_fields(name: str, entity) -> bool:
+    '''
+    Check if the given `entity` with the given `name` has all the fields
+    for a firewall.
+    True if the given entity contains all the firewall fields. Else, False.
+    '''
+
+    for required in constants.FIREWALL_FIELDS:
+        if required not in entity:
+            utils.print_error(f"Firewall {name} missing field {required}")
+            return False
+
+    if entity["default"].lower() not in ("accept", "drop"):
+        raise RuntimeError(f"Firewall {name} default policy must be \"accept\" or \"drop\"")
+
+    if "rules" in entity and entity["rules"] is not None:
+        for rule in entity["rules"]:
+            for field in rule:
+                if field not in constants.FIREWALL_RULES_FIELDS:
+                    utils.print_error(f"Rule {rule} of firewall {name} has unexpected field {field}")
+            if "custom" in rule and len(rule) != 1:
+                raise RuntimeError(f"Rule {rule} for firewall {name} cannot have other fields with custom rule")
+
+    if not check_connection_specifications(name, entity, entity["connections"]):
+        return False
+
+    return True
+
 
 def check_impairments(entity, connection, field) -> bool:
     """Check impariments specified in connections."""
@@ -264,6 +295,8 @@ def check_connection_specifications(name: str, entity, connections: list) -> boo
         mandatory_list = constants.CONNECTION_ROUTER_MANDATORY_FIELDS
     elif entity_type == "external":
         mandatory_list = constants.CONNECTION_EXTERNAL_MANDATORY_FIELDS
+    elif entity_type == "firewall":
+        mandatory_list = constants.CONNECTION_FIREWALL_MANDATORY_FIELDS
     else:
         utils.print_error(f"Entity {entity} has unknown type {entity_type}")
         return False
@@ -313,26 +346,26 @@ def check_connectivity(config) -> bool:
                                           f"of {entity} does not exists")
                         return False
 
-                    # check that intermediary hops are routers
-                    if hop != len(hops) - 1 and config[hops[hop]]["type"] != "router":
+                    # check that intermediary hops are routers or firewall
+                    if hop != len(hops) - 1 and config[hops[hop]]["type"] not in constants.INTERMEDIARY_TYPES:
                         utils.print_error(f"Intermediary hop {hops[hop]} of connection "
                                           f"{connection} for {entity} is not a router")
                         return False
 
-                    # check coherency with conn in routers
+                    # check coherency with conn in intermediary hop
                     if hop < len(hops) - 1:
-                        conns = [conn["path"] for conn in config[hops[hop]]['connections']]
+                        conns = [conn["path"] for conn in extract_connections(config[hops[hop]])]
                         if hops[hop + 1] not in conns:
                             utils.print_error(f"Intermediary hop {hops[hop]} of connection "
                                               f"{connection} for {entity} should specify "
                                               f"one of {conns}")
                             return False
 
-                # check that last node in path is a service
+                # check that last node in path is a end host
                 last = hops[len(hops) - 1]
-                if config[last]["type"] != "service":
+                if config[last]["type"] not in constants.END_HOST_TYPES:
                     utils.print_error(f"Last hop {last} in path {connection} for {entity} must "
-                                      f"be a service")
+                                      f"be a end host")
                     return False
 
             else:  # connection is direct
@@ -345,7 +378,7 @@ def check_connectivity(config) -> bool:
 
                 # check that destination is a service if the source is a service
                 # a router can be connected to a router
-                if config[entity]["type"] == "service" and config[connection]["type"] != "service":
+                if config[entity]["type"] in constants.END_HOST_TYPES and config[connection]["type"] not in constants.END_HOST_TYPES:
                     utils.print_error(f"Destination of connection {connection} for {entity} is "
                                       f"not a service")
                     return False
@@ -377,7 +410,7 @@ def check_unique_ports(config) -> bool:
     ports: dict[int, Any]= {}
 
     for entity in config:
-        if config[entity]['type'] == "router":
+        if config[entity]['type'] in constants.INTERMEDIARY_TYPES:
             continue
 
         # Port exposed by default
@@ -446,7 +479,7 @@ def extract_connections(entity_config) -> list:
 
     entity_type = entity_config["type"]
 
-    if entity_type in ("router", "external"):
+    if entity_type in ("router", "external", "firewall"):
         if "connections" in entity_config:
             conns = entity_config["connections"]
             return conns if conns is not None else []

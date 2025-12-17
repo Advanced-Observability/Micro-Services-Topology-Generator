@@ -8,8 +8,13 @@ Docker container containing the [ioam-collector-go-jaeger](https://github.com/Ad
 
 ## [Router](./router/)
 
-Represents a router in the topology.
+Represent a router in the topology.
 
 ## [Service](./service/)
 
-Represents a service in the topology.
+Represent a service in the topology.
+
+## [Firewall](./fw/)
+
+Represent a firewall in the topology.
+

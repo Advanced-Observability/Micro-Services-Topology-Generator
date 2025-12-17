@@ -8,6 +8,7 @@ import utils
 import router
 import entities
 import services
+import firewall
 import constants
 import kubernetes
 import config_parser
@@ -115,6 +116,8 @@ class Architecure:
                 ))
             elif entity_type == "router":
                 self.entities.append(router.Router(entity))
+            elif entity_type == "firewall":
+                self.entities.append(firewall.Firewall(entity, self.config[entity]))
             else:
                 raise RuntimeError(f"Entity {entity} has unexpected type {entity_type}")
 
@@ -156,25 +159,26 @@ class Architecure:
         '''Parse E2E connections for the services based on the architecture.'''
 
         for entity in self.entities:
-            if not isinstance(entity, services.Service):
+            if isinstance(entity, router.Router):
                 continue
 
             e = config_parser.get_entity(self.config, entity.name)
             if e is None:
-                raise RuntimeError(f"Unable to get entity {entity.name}")
+                raise RuntimeError(f"Unable to get config of entity {entity.name}")
 
-            connections: list[str] = []
+            conns = config_parser.extract_connections(e)
+            entity.e2e_conns.extend([conn["path"] for conn in conns])
 
-            if not entity.external:
-                for endpoint in e["endpoints"]:
-                    if "connections" in endpoint and endpoint["connections"] is not None:
-                        connections.extend(conn["path"] for conn in endpoint["connections"])
-            else:
-                for conn in e["connections"]:
-                    if "path" in conn and conn["path"] is not None:
-                        connections.append(conn["path"])
+            # if FW in path, need to add current connection as e2e of FW
+            for conn in conns:
+                if "->" not in conn["path"]:
+                    continue
 
-            entity.e2e_conns.extend(connections)
+                hops = conn["path"].split("->")
+                for hop in hops:
+                    entityHop = self.find_entity(hop)
+                    if entityHop is not None and isinstance(entityHop, firewall.Firewall):
+                        entityHop.e2e_conns.append(f"{entity.name}->"+conn["path"])
 
     def get_interface_id(self, source: str, dest: str) -> int:
         '''
@@ -211,12 +215,12 @@ class Architecure:
         Otherwise, it uses the telemetry network for communication between the services.
         """
         for entity in self.entities:
-            if not isinstance(entity, services.Service):
+            if isinstance(entity, router.Router):
                 continue
 
             for e2e in entity.e2e_conns:
                 # path
-                if "->" in e2e:
+                if "->" in e2e and not isinstance(entity, firewall.Firewall):
                     hops = e2e.split("->")
 
                     first = hops[0]
@@ -242,7 +246,16 @@ class Architecure:
                         raise RuntimeError("Unable to find service " + last)
 
                     last_service.extra_hosts.add((entity.name, shared_begin_first_hop.begin_ip))
-
+                elif "->" in e2e and isinstance(entity, firewall.Firewall):
+                    hops = e2e.split("->")
+                    for i in range(len(hops)-1):
+                        if hops[i] == entity.name:
+                            continue
+                        net = self.get_shared_network(hops[i], hops[i+1])
+                        if net is None:
+                            raise RuntimeError(f"Unable to get shared network between {hops[i]} "
+                                                f"and {hops[i+1]} in associate_extra_hosts")
+                        entity.extra_hosts.add((hops[i], net.begin_ip))
                 # direct connection
                 else:
                     net = self.get_shared_network(entity.name, e2e)

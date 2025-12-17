@@ -15,7 +15,7 @@ def read_file(path: str) -> str:
 
 # --------------------------------------------------------------------------------------------------
 
-VERSION = "0.0.5"
+VERSION = "0.0.6"
 
 DEFAULT_CONFIG_FILE = "./config.yml"
 
@@ -73,6 +73,7 @@ TEMPLATE_COMPOSE_FOLDER = os.path.join(Path(__file__).parent, "templates/compose
 ROUTER_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "router-template.yml")))
 SERVICE_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "service-template.yml")))
 EXTERNAL_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "external-template.yml")))
+FIREWALL_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "firewall-template.yml")))
 JAEGER_SERVICE = read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "jaeger-service.yml"))
 IOAM_COLLECTOR_SERVICE = read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "ioam-collector-ipv6.yml"))
 
@@ -152,12 +153,17 @@ LAUNCH_INTERFACE_SCRIPT = "sh set_interfaces.sh"
 DELETE_DEFAULT_IPV6_ROUTE = "ip -6 r d default"
 DELETE_DEFAULT_IPV4_ROUTE = "ip r d default"
 LAUNCH_IOAM_AGENT = "/ioam-agent -i eth0"
-LAUNCH_ROUTER = "tail -f /dev/null"
+LAUNCH_BACKGROUND_PROCESS = "tail -f /dev/null"
+
+IPTABLES_DEFAULT_ROUTE = "iptables -P FORWARD {}"
+IP6TABLES_DEFAULT_ROUTE = "ip6tables -P FORWARD {}"
 
 # --------------------------------------- FOR PARSING THE CONFIG -----------------------------------
 
 # Types of entities supported by the generator
-KNOWN_TYPES = ["service", "router", "external"]
+KNOWN_TYPES = ["service", "router", "external", "firewall"]
+INTERMEDIARY_TYPES = ["router", "firewall"]
+END_HOST_TYPES = ["service", "external"]
 
 # Fields shared by all types
 MANDATORY_COMMON_FIELDS = ["type"]
@@ -169,12 +175,22 @@ SERVICE_ENDPOINT_FIELDS = ["entrypoint", "psize"]
 # Fields for external container
 EXTERNAL_FIELDS = ["image", "ports", "connections"]
 
+# Fields for firewall
+FIREWALL_FIELDS = ["default", "connections", "rules"]
+FIREWALL_RULES_FIELDS = [
+    "source", "sport",
+    "destination", "dport",
+    "protocol", "action",
+    "extension", "custom"
+]
+
 # Ports used by telemtry
 TELEMETRY_PORTS = [1686, 14268, 4317, 4318, 7123]
 
 # fields for connections
 CONNECTION_ROUTER_MANDATORY_FIELDS = ["path"]
 CONNECTION_EXTERNAL_MANDATORY_FIELDS = CONNECTION_ROUTER_MANDATORY_FIELDS
+CONNECTION_FIREWALL_MANDATORY_FIELDS = CONNECTION_ROUTER_MANDATORY_FIELDS
 CONNECTION_SERVICE_MANDATORY_FIELDS = ["path", "url"]
 CONNECTION_IMPAIRMENTS = [
     "mtu", "buffer_size", "rate", "delay", "jitter", "loss",

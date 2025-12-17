@@ -4,7 +4,7 @@
 FROM alpine:latest
 
 # Install requried packages
-RUN apk add iproute2 iproute2-tc iptables --no-cache
+RUN apk add iproute2 iproute2-tc iptables tcpdump --no-cache
 
 # Copy Go service and config
 COPY ./service /usr/local/bin/

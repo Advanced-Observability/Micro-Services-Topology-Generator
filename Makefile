@@ -26,18 +26,18 @@ $(SERVICE_DIR)/$(BINARY): $(SERVICE_DIR)/*.go $(SERVICE_DIR)/go.mod $(SERVICE_DI
 	@echo ""
 	@echo "Building executable for service"
 	CGO_ENABLED=0 go build -C $(SERVICE_DIR) -tags netgo -o $(BINARY)
-	cp $(SERVICE_DIR)/$(BINARY) $(DOCKER_DIR)/service
+	cp $@ $(DOCKER_DIR)/service
 
 # -----------------------------------------------
 # DOCKER IMAGES
 # -----------------------------------------------
 
-.PHONY: images mstg_service mstg_router
-.PHONY: images_clt mstg_service_clt mstg_router_clt mstg_ioam_collector
+.PHONY: images mstg_service mstg_router mstg_fw
+.PHONY: images_clt mstg_service_clt mstg_router_clt mstg_ioam_collector mstg_fw
 
-images: mstg_router mstg_service
+images: mstg_router mstg_service mstg_fw
 
-images_clt: mstg_router_clt mstg_service_clt mstg_ioam_collector
+images_clt: mstg_router_clt mstg_service_clt mstg_ioam_collector mstg_fw
 
 mstg_service: $(DOCKER_DIR)/service/Dockerfile $(SERVICE_DIR)/$(BINARY) $(CONFIG)
 	@echo ""
@@ -47,8 +47,7 @@ mstg_service: $(DOCKER_DIR)/service/Dockerfile $(SERVICE_DIR)/$(BINARY) $(CONFIG
 	cp $(SERVICE_DIR)/server.key $(DOCKER_DIR)/service
 	cp $(SERVICE_DIR)/server.crt $(DOCKER_DIR)/service
 	cp $(SERVICE_DIR)/$(BINARY) $(DOCKER_DIR)/service
-	docker build -t $@ -f $(DOCKER_DIR)/service/Dockerfile $(DOCKER_DIR)/service
-	#$(if $(shell command -v docker-squash &> /dev/null), @docker-squash $@ -t $@ > /dev/null)
+	docker build -t $@ -f $< $(DOCKER_DIR)/service
 
 mstg_service_clt: $(DOCKER_DIR)/service/Dockerfile_clt $(SERVICE_DIR)/$(BINARY) $(CONFIG)
 	@echo ""
@@ -58,27 +57,28 @@ mstg_service_clt: $(DOCKER_DIR)/service/Dockerfile_clt $(SERVICE_DIR)/$(BINARY) 
 	cp $(SERVICE_DIR)/server.key $(DOCKER_DIR)/service
 	cp $(SERVICE_DIR)/server.crt $(DOCKER_DIR)/service
 	cp $(SERVICE_DIR)/$(BINARY) $(DOCKER_DIR)/service
-	docker build -t $@ -f $(DOCKER_DIR)/service/Dockerfile_clt $(DOCKER_DIR)/service
-	#$(if $(shell command -v docker-squash &> /dev/null), @docker-squash $@ -t $@ > /dev/null)
+	docker build -t $@ -f $< $(DOCKER_DIR)/service
 
 mstg_router: $(DOCKER_DIR)/router/Dockerfile
 	@echo ""
 	@echo "Building Docker image for router"
 	@echo "Using config file $(CONFIG)"
-	docker build -t $@ -f $(DOCKER_DIR)/router/Dockerfile $(DOCKER_DIR)/router
-	#$(if $(shell command -v docker-squash &> /dev/null), @docker-squash $@ -t $@ > /dev/null)
+	docker build -t $@ -f $< $(DOCKER_DIR)/router
 
 mstg_router_clt: $(DOCKER_DIR)/router/Dockerfile_clt
 	@echo ""
 	@echo "Building Docker image for router with CLT"
-	docker build -t $@ -f $(DOCKER_DIR)/router/Dockerfile_clt $(DOCKER_DIR)/router
-	#$(if $(shell command -v docker-squash &> /dev/null), @docker-squash $@ -t $@ > /dev/null)
+	docker build -t $@ -f $< $(DOCKER_DIR)/router
+
+mstg_fw: $(DOCKER_DIR)/fw/Dockerfile
+	@echo ""
+	@echo "Building Docker image for firewall"
+	docker build -t $@ -f $< $(DOCKER_DIR)/fw
 
 mstg_ioam_collector: $(DOCKER_DIR)/ioam-collector/Dockerfile $(DOCKER_DIR)/ioam-collector/*.go
 	@echo ""
 	@echo "Building Docker image for IOAM collector"
 	docker build -t $@ $(DOCKER_DIR)/ioam-collector
-	#$(if $(shell command -v docker-squash &> /dev/null), @docker-squash $@ -t $@ > /dev/null)
 
 # -----------------------------------------------
 # GENERATOR - DOCKER COMPOSE
@@ -91,7 +91,7 @@ mstg_ioam_collector: $(DOCKER_DIR)/ioam-collector/Dockerfile $(DOCKER_DIR)/ioam-
 ipv6: $(GEN_DIR)/*.py $(CONFIG)
 	@echo ""
 	@echo "Generating the docker compose for IPv6"
-	$(PYTHON) $(GEN_DIR)/generator.py --config $(CONFIG) --ip 6
+	$(PYTHON) $(GEN_DIR)/generator.py --config $(CONFIG) --ip 6 --debug
 
 ipv6_https: $(GEN_DIR)/*.py $(CONFIG)
 	@echo ""
@@ -222,8 +222,8 @@ clean:
 	docker rmi -f mstg_router 2>/dev/null || true
 	docker rmi -f mstg_router_clt 2>/dev/null || true
 	docker rmi -f mstg_ioam_collector 2>/dev/null || true
+	docker rmi -f mstg_fw 2>/dev/null || true
 
-# commands.sh is executed for external images
 start:
 	docker compose up --force-recreate --remove-orphans --detach
 	@chmod +x commands.sh && bash commands.sh || true
@@ -256,6 +256,7 @@ kind_add_images: images images_clt
 	kind load docker-image --name meshnet mstg_router
 	kind load docker-image --name meshnet mstg_router_clt
 	kind load docker-image --name meshnet mstg_ioam_collector
+	kind load docker-image --name meshnet mstg_fw
 
 mstg_help: $(GEN_DIR)/*.py
 	$(PYTHON) $(GEN_DIR)/generator.py --help

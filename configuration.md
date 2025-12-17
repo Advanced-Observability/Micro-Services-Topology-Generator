@@ -6,7 +6,7 @@ This file explains the configuration file format expected by the tool.
 
 ## Structure of a configuration file
 
-A configuration file is a `yml` file describing all the services and routers of the architecture along with the network links between them.
+A configuration file is a `yml` file describing all the entities of the architecture along with the network links between them.
 
 ### Specifying a service
 
@@ -102,6 +102,44 @@ The values in the template are the following:
 > [!CAUTION]
 > Due to the requirements imposed by CLT, one should refrain from using CLT with existing Docker containers.
 
+### Specifying a firewall
+
+Since v0.0.6, MSTG allows to add firewalls to the generated topologies.
+
+The firewall uses `iptables` under the hood.
+
+A firewall can be specified with the following template:
+```yml
+<name>:
+  type: firewall
+  default: <ACCEPT|DROP>
+  connections:
+    - path: <nexthop>
+  rules:
+    - source: <source>
+      sport: <sport>
+      destination: <destination>
+      dport: <dport>
+      protocol: <udp|tcp>
+      action: <action>
+      extension: <extension>
+    - custom: <custom>
+```
+
+The values in the template are the following:
+- `default` is the default action of the firewall;
+- `nexthop` is a connection as specified for a router. The firewall can have multiple connections;
+- `source` is the source of the packets;
+- `sport` is the source port. Use `"*"` to signify any port;
+- `destination` is the destination of the packets;
+- `dport` is the destination port. Use `"*"` to signify any port;
+- `protocol` is the network protocol of the packets;
+- `action` is any builtin target available in `iptables`. See [man page of iptables](https://linux.die.net/man/8/iptables);
+- `extension` is any match extension available in `iptables`, such as `conntrack`. See [man page of iptables](https://linux.die.net/man/8/iptables);
+- `custom` is a custom `iptables` command. It **cannot** be used with other fields.
+
+A firewall can have many rules.
+
 ### Network options
 
 Network parameters can be configured on the connections between entities, they must be added in the connection description. The available parameter fields are:
@@ -133,7 +171,7 @@ See [7_timers.yml](./configuration_examples/7_timers.yml) for an example using t
 
 ## Examples
 
-Example of a valid configuration file:
+Example of a simple valid configuration file:
 
 ```yml
 frontend:

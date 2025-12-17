@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 import subprocess
 
 MAKE_COMMAND = "make"
@@ -31,12 +32,16 @@ if __name__ == "__main__":
         path = os.path.join("configuration_examples", config)
         print(f"Testing {path}...")
 
+        # build docker image for external container
+        if "external" in config:
+            subprocess.run("cd generator/tests/docker_myimage && docker build -t myimage .", shell=True)
+
         p = subprocess.run(f"cp {path} config.yml", shell=True)
         if p.returncode != 0:
             print_error(f"Error cp of {path}")
             sys.exit(1)
 
-        p = subprocess.run(f"make clean > /dev/null 2> /dev/null && make images > /dev/null 2> /dev/null && make ipv6_ioam > /dev/null 2> /dev/null", shell=True)
+        p = subprocess.run(f"make clean > /dev/null 2> /dev/null && make images > /dev/null 2> /dev/null && make ipv6 > /dev/null 2> /dev/null", shell=True)
         if p.returncode != 0:
             print_error("Could not make")
             sys.exit(1)
@@ -46,8 +51,13 @@ if __name__ == "__main__":
             print_error("Could not start")
             sys.exit(1)
 
-        p = subprocess.run("curl http://localhost:80", shell=True)
-        if p.returncode != 0:
+        p = subprocess.run("chmod +x commands.sh && ./commands.sh 2> /dev/null", shell=True)
+
+        time.sleep(3)
+
+        p = subprocess.run("curl -6 \"http://[::1]:80/\"", shell=True)
+        p2 = subprocess.run("curl http://127.0.0.1:80", shell=True)
+        if p.returncode != 0 and p2.returncode != 0:
             print_error("Could not curl")
             sys.exit(1)
         else:

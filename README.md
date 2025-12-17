@@ -4,9 +4,10 @@ This tool automates the generation of containerized microservices topologies.
 
 From a single user-provided configuration `yml` file, it generates the intermediary files for [Docker Compose](https://docs.docker.com/compose/) or [Kubernetes](https://kubernetes.io/).
 
-The microservices, all instances of the same program, will sequentially send requests to the services they are connected to before responding to their own requests.
-
-Routers can be added between the services to simulate a real network environment.
+The following entities can be added in the topologies:
+- Microservices, which are all instances of the same generic program, will sequentially send requests to the services they are connected to before responding to their own requests;
+- External Docker images. Thus, you can reuse your existing containers;
+- Routers and firewalls to simulate a real network environment.
 
 See [generator/README.md](./generator/README.md) for details on the generator of configuration files.
 

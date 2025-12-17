@@ -1,0 +1,123 @@
+networks:
+  network_telemetry:
+    name: network_telemetry
+    enable_ipv6: true
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "true"
+    ipam:
+      driver: default
+      config:
+       - subnet: 0:0:0:1::/64
+         gateway: ::1:0:0:0:1
+
+services:
+  jaeger:
+    container_name: jaeger
+    hostname: jaeger
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - 16686:16686
+      - 14268:14268
+      - 4317:4317
+      - 4318:4318
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - QUERY_MAX_CLOCK_SKEW_ADJUSTMENT=5s
+      - MEMORY_MAX_TRACES=100
+      - LOG_LEVEL=warn
+    networks:
+      network_telemetry:
+        ipv6_address: ::1:0:0:0:2
+  ioam-collector:
+    container_name: ioam-collector
+    hostname: ioam-collector
+    image: mstg_ioam_collector
+    environment:
+      - OTEL_EXPORTER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+    networks:
+      network_telemetry:
+        ipv6_address: ::1:0:0:0:3
+    depends_on:
+      - jaeger
+  s1:
+    container_name: s1
+    hostname: s1
+    image: mstg_switch
+    command: sh -c " (service openvswitch-switch start) && (ovs-vsctl add-br s1) && (ip link set s1 up) && (tail -f /dev/null) "
+    restart: on-failure
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+
+  frontend:
+    container_name: frontend
+    hostname: frontend
+    image: mstg_service_clt
+    command: sh -c "(/usr/local/bin/service /etc/config.yaml)"
+    restart: on-failure
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    environment:
+      - SERVICE_NAME=frontend
+      - IOAM_COLLECTOR=ioam-collector:7123
+      - CLT_ENABLE=1
+      - IOAM_ENABLE=1
+      - JAEGER_ENABLE=True
+      - HTTP_VERSION=http
+      - IP_VERSION=6
+    ports:
+     - 80:80
+    sysctls:
+      - net.ipv6.ioam6_id=53
+      - net.ipv6.conf.all.ioam6_id=53
+      - net.ipv6.conf.default.ioam6_id=53
+      - net.ipv6.conf.all.ioam6_enabled=1
+      - net.ipv6.conf.default.ioam6_enabled=1
+    depends_on:
+      - jaeger
+      - ioam-collector
+      - s1
+      - db
+    networks:
+      network_telemetry:
+    extra_hosts:
+      - "db:::26:0:0:0:3"
+
+  db:
+    container_name: db
+    hostname: db
+    image: mstg_service_clt
+    command: sh -c "(/usr/local/bin/service /etc/config.yaml)"
+    restart: on-failure
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    environment:
+      - SERVICE_NAME=db
+      - IOAM_COLLECTOR=ioam-collector:7123
+      - CLT_ENABLE=1
+      - IOAM_ENABLE=1
+      - JAEGER_ENABLE=True
+      - HTTP_VERSION=http
+      - IP_VERSION=6
+    ports:
+     - 10001:10001
+    sysctls:
+      - net.ipv6.ioam6_id=55
+      - net.ipv6.conf.all.ioam6_id=55
+      - net.ipv6.conf.default.ioam6_id=55
+      - net.ipv6.conf.all.ioam6_enabled=1
+      - net.ipv6.conf.default.ioam6_enabled=1
+    depends_on:
+      - jaeger
+      - ioam-collector
+    networks:
+      network_telemetry:
+    extra_hosts:
+      - "frontend:::26:0:0:0:2"
+

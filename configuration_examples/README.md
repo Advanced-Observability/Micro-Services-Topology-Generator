@@ -1,21 +1,20 @@
 # Examples
 
-This folder contains some examples of configurations for the generator of docker compose files.
+This folder contains some examples of configurations for MSTG.
 
-For each example, you can contact the frontend with one of the following command once the docker compose is generated and the containers are running on your host.
+For each example, you can contact the frontend with one of the following commands once the containers are running:
 ```bash
 curl "http://127.0.0.1:80/" # if you generated the architecture with IPv4
 curl -6 "http://[::1]:80/" # if you generated the architecture with IPv6
 ```
 
-After a request has been made, you can see the trace in Jaeger at [http://localhost:16686/](http://localhost:16686/).
+After a request has been made, you can see the trace in Jaeger at [http://localhost:16686/](http://localhost:16686/) if Jaeger has been included in the generated architecture.
 
 ## Example 1 ([`1_2_entities.yml`](1_2_entities.yml))
 
 2 services that are directly connected to each other.
 
 ![Diagram first example](diagrams/example_1.png)
-
 
 ![Screenshot first example](screenshots/example_1.png)
 
@@ -78,3 +77,15 @@ curl -6 "http://[::1]:80/test" # for the second endpoint
 ## Example 9 ([9_otel_demo.yml](./9_otel_demo.yml))
 
 This example is a copy of the architecture of the [demo of OpenTelemetry](https://opentelemetry.io/docs/demo/architecture/).
+
+## Example 10 ([10_external.yml](./10_external.yml))
+
+Same as [2_1_router_inline.yml](./2_1_router_inline.yml) using an external image for `frontend`.
+
+![Diagram tenth example](./diagrams/example_2.png)
+
+## Example 11 ([11_firewall.yml](./11_firewall.yml))
+
+2 services with a router and a firewall in between them.
+
+![Diagram eleventh example](./diagrams/example_11.png)

@@ -7,6 +7,7 @@ import utils
 import router
 import exporter
 import services
+import firewall
 import constants
 import architecture
 
@@ -35,6 +36,13 @@ class ComposeExporter(exporter.Exporter):
         '''Write all the services into the given `file` as in a docker compose file.'''
         for entity in self.arch.entities:
             if isinstance(entity, services.Service):
+                entity.export_compose(file)
+                file.write("\n")
+
+    def write_firewalls(self, file) -> None:
+        '''Write all the firewalls into the given `file`.'''
+        for entity in self.arch.entities:
+            if isinstance(entity, firewall.Firewall):
                 entity.export_compose(file)
                 file.write("\n")
 
@@ -72,6 +80,7 @@ class ComposeExporter(exporter.Exporter):
             f.write("\n")
             self.write_routers(f)
             self.write_services(f)
+            self.write_firewalls(f)
 
     def export(self):
         # empty commands file

@@ -9,6 +9,7 @@ import utils
 import router
 import services
 import exporter
+import firewall
 import constants
 import kubernetes
 
@@ -38,6 +39,7 @@ class K8SExporter(exporter.Exporter):
 
         self.export_routers()
         self.export_services()
+        self.export_firewalls()
 
         if utils.is_using_jaeger():
             self.export_jaeger()
@@ -57,6 +59,13 @@ class K8SExporter(exporter.Exporter):
         for entity in self.arch.entities:
             if isinstance(entity, services.Service):
                 utils.print_info(f"Exporting service {entity.name} to Kubernetes format...")
+                entity.export_k8s()
+
+    def export_firewalls(self) -> None:
+        """Export all the firewalls into Kubernetes configuratio files."""
+        for entity in self.arch.entities:
+            if isinstance(entity, firewall.Firewall):
+                utils.print_info(f"Exporting firewall {entity.name} to Kubernetes format")
                 entity.export_k8s()
 
     def export_jaeger(self) -> None:

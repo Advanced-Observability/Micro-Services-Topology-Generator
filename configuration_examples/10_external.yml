@@ -1,0 +1,17 @@
+frontend:
+  type: external
+  image: myimage
+  ports:
+    - 80
+  connections:
+    - path: r1->db
+r1:
+  type: router
+  connections:
+    - path: db
+db:
+  type: service
+  port: 10001
+  endpoints:
+    - entrypoint: /
+      psize: 128
