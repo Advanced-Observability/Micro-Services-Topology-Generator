@@ -1,0 +1,22 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      respsize: 512
+      connections:
+        - path: s1->db
+          url: /
+s1:
+  type: switch
+  neighbors:
+    - hop: frontend
+      vlan: 10
+    - hop: db
+      vlan: 10
+db:
+  type: service
+  port: 10001
+  endpoints:
+    - entrypoint: /
+      respsize: 128

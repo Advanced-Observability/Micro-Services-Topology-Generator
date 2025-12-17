@@ -13,10 +13,20 @@ import constants
 import kubernetes
 
 
-class FirewallRule():
+class FirewallRule:
     """Represent a firewall rule."""
 
-    def __init__(self, source="", sport="", dest="", dport="", proto="", action="", extension="", custom=""):
+    def __init__(
+        self,
+        source="",
+        sport="",
+        dest="",
+        dport="",
+        proto="",
+        action="",
+        extension="",
+        custom="",
+    ):
         self.source = source
         self.sport = sport
         self.destination = dest
@@ -27,14 +37,16 @@ class FirewallRule():
         self.custom = custom
 
     def __str__(self) -> str:
-        return f"source: {self.source} - "\
-                f"sport: {self.sport} - "\
-                f"destination: {self.destination} - "\
-                f"dport: {self.dport} - "\
-                f"proto: {self.proto} - "\
-                f"action: {self.action} - "\
-                f"extension: {self.extension} - "\
-                f"custom: {self.custom}"
+        return (
+            f"source: {self.source} - "
+            f"sport: {self.sport} - "
+            f"destination: {self.destination} - "
+            f"dport: {self.dport} - "
+            f"proto: {self.proto} - "
+            f"action: {self.action} - "
+            f"extension: {self.extension} - "
+            f"custom: {self.custom}"
+        )
 
     def pretty(self) -> str:
         """Pretty print the rule."""
@@ -52,21 +64,22 @@ class FirewallRule():
             cmd = "ip6tables -A FORWARD "
 
         if self.proto != "":
-            cmd+=f"-p {self.proto} "
+            cmd += f"-p {self.proto} "
         if self.source != "":
-            cmd+=f"-s {self.source} "
+            cmd += f"-s {self.source} "
         if self.sport not in ("", "*"):
-            cmd+=f"--sport {self.sport} "
+            cmd += f"--sport {self.sport} "
         if self.destination != "":
-            cmd+=f"-d {self.destination} "
+            cmd += f"-d {self.destination} "
         if self.dport not in ("", "*"):
-            cmd+=f"--dport {self.dport} "
+            cmd += f"--dport {self.dport} "
         if self.extension != "":
-            cmd+=f"{self.extension} "
+            cmd += f"{self.extension} "
         if self.action != "":
-            cmd+=f"-j {self.action.upper()} "
+            cmd += f"-j {self.action.upper()} "
 
         return cmd
+
 
 def parse_rule(rule: Any) -> FirewallRule:
     """Parse rule from YML."""
@@ -98,6 +111,7 @@ def parse_rule(rule: Any) -> FirewallRule:
 
     return fw_rule
 
+
 class Firewall(entities.Entity):
     """Represent a firewall in the architecture."""
 
@@ -115,18 +129,18 @@ class Firewall(entities.Entity):
 
         rules = ""
         for rule in self.rules:
-            rules+=f"\n\t\t- {rule}"
+            rules += f"\n\t\t- {rule}"
 
-        return f"Firewall: {self.name}"\
-                f"\n\t- Rules: {rules}"\
-                f"\n\t- {super().pretty()}"
+        return f"Firewall: {self.name}\n\t- Rules: {rules}\n\t- {super().pretty()}"
 
     def configure_firewall(self) -> None:
         """Set internal representation of firewall."""
 
         self.default = self.config["default"].lower()
         if self.default not in ("accept", "drop"):
-            raise RuntimeError(f"Firewall {self.name} default action {self.default} is not valid")
+            raise RuntimeError(
+                f"Firewall {self.name} default action {self.default} is not valid"
+            )
 
         if "rules" in self.config and self.config["rules"] is not None:
             for rule in self.config["rules"]:
@@ -138,9 +152,13 @@ class Firewall(entities.Entity):
             self.add_command(constants.DROP_ICMP_REDIRECT)
 
         if utils.topology_is_ipv4():
-            self.add_command(constants.IPTABLES_DEFAULT_ROUTE.format(self.default.upper()))
+            self.add_command(
+                constants.IPTABLES_DEFAULT_ROUTE.format(self.default.upper())
+            )
         else:
-            self.add_command(constants.IP6TABLES_DEFAULT_ROUTE.format(self.default.upper()))
+            self.add_command(
+                constants.IP6TABLES_DEFAULT_ROUTE.format(self.default.upper())
+            )
 
         for rule in self.rules:
             self.add_command(rule.export_rule())
@@ -159,7 +177,6 @@ class Firewall(entities.Entity):
         file.write("    networks:\n")
 
         for i, net in enumerate(self.attached_networks):
-
             # do not attach L2 network. Will be configured with veth
             if net.type == network.NetworkType.L2_NET:
                 continue
@@ -169,12 +186,7 @@ class Firewall(entities.Entity):
             mac = net.get_entity_mac(self.name)
             ifname = utils.get_interface_name(i, self.name)
 
-            mappings = {
-                "net_name": name,
-                "ip": ip,
-                "mac": mac,
-                "ifname": ifname
-            }
+            mappings = {"net_name": name, "ip": ip, "mac": mac, "ifname": ifname}
 
             if utils.topology_is_ipv4():
                 file.write(constants.COMPOSE_IPV4_NET_SPEC.substitute(mappings))
@@ -187,7 +199,9 @@ class Firewall(entities.Entity):
         mappings = {
             "name": self.name,
             "dockerImage": "mstg_fw",
-            "commands": utils.export_single_command(constants.LAUNCH_BACKGROUND_PROCESS)
+            "commands": utils.export_single_command(
+                constants.LAUNCH_BACKGROUND_PROCESS
+            ),
         }
         file.write(constants.FIREWALL_TEMPLATE.substitute(mappings))
 
@@ -204,7 +218,7 @@ class Firewall(entities.Entity):
         if len(self.extra_hosts) > 0:
             file.write("    extra_hosts:\n")
             for host, ip in self.extra_hosts.items():
-                file.write(f"      - \"{host}:{ip}\"\n")
+                file.write(f'      - "{host}:{ip}"\n')
 
         # exporting commands
         self.export_commands()
@@ -220,7 +234,10 @@ class Firewall(entities.Entity):
     def export_k8s_pod(self, port: int):
         """Export the firewall to a Kubernetes pod using the given `port`."""
 
-        cmd = self.export_commands() + f"& {utils.export_single_command(constants.LAUNCH_BACKGROUND_PROCESS)}"
+        cmd = (
+            self.export_commands()
+            + f"& {utils.export_single_command(constants.LAUNCH_BACKGROUND_PROCESS)}"
+        )
 
         # pod configuration
         pod_config = {
@@ -229,20 +246,24 @@ class Firewall(entities.Entity):
             "shortName": self.name,
             "image": "mstg_fw",
             "cmd": constants.K8S_POD_CMD.format(cmd),
-            "CLT_ENABLE": f"\"{os.environ[constants.CLT_ENABLE_ENV]}\"",
+            "CLT_ENABLE": f'"{os.environ[constants.CLT_ENABLE_ENV]}"',
             "JAEGER_HOSTNAME": constants.K8S_JAEGER_HOSTNAME,
-            "JAEGER_ENABLE": f"\"{os.environ[constants.JAEGER_ENABLE_ENV]}\"",
+            "JAEGER_ENABLE": f'"{os.environ[constants.JAEGER_ENABLE_ENV]}"',
             "COLLECTOR_HOSTNAME": constants.K8S_COLLECTOR_HOSTNAME,
             "HTTP_VER": os.environ[constants.HTTP_VER_ENV],
             "CERT_FILE": "empty",
             "KEY_FILE": "empty",
-            "IP_VERSION": f"\"{os.environ[constants.IP_VERSION_ENV]}\"",
-            "ports": Template(constants.K8S_POD_PORT).substitute({"port": port})
+            "IP_VERSION": f'"{os.environ[constants.IP_VERSION_ENV]}"',
+            "ports": Template(constants.K8S_POD_PORT).substitute({"port": port}),
         }
         pod = constants.TEMPLATE_K8S_POD.substitute(pod_config)
 
         # output file
-        with open(os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_pod.yaml"), "w", encoding="utf-8") as f:
+        with open(
+            os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_pod.yaml"),
+            "w",
+            encoding="utf-8",
+        ) as f:
             f.write(pod)
 
             # write extra hosts
@@ -260,10 +281,16 @@ class Firewall(entities.Entity):
         service_config = {
             "name": f"{self.name}-svc",
             "podName": f"{self.name}-pod",
-            "ports": Template(constants.K8S_SERVICE_PORT).substitute({"port": port, "nodePort": port})
+            "ports": Template(constants.K8S_SERVICE_PORT).substitute(
+                {"port": port, "nodePort": port}
+            ),
         }
         service = constants.TEMPLATE_K8S_SERVICE.substitute(service_config)
 
-        with open(os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_service.yaml"), "w", encoding="utf-8") as f:
+        with open(
+            os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_service.yaml"),
+            "w",
+            encoding="utf-8",
+        ) as f:
             f.write(service)
             f.close()

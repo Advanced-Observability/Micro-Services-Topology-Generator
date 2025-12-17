@@ -27,7 +27,7 @@ def gen_config_files(args=None):
 
     print("Checking command line arguments...")
     conf_file = utils.check_arguments(args)
-    utils.print_info(f"Got configuration file \"{conf_file}\"")
+    utils.print_info(f'Got configuration file "{conf_file}"')
     utils.print_success("Checked command line arguments.")
 
     print("\nParsing the configuration file...")
@@ -35,11 +35,14 @@ def gen_config_files(args=None):
     utils.print_success("Extracted config.")
 
     print("\nBuilding the architecture based on the configuration file...\n")
-    arch = architecture.Architecure(conf_file, config)
+    arch = architecture.Architecture(conf_file, config)
     if "--time" not in sys.argv:
         nx.draw_spring(
-            arch.graph, node_color='deepskyblue',
-            edge_color='dimgray', arrows=True, with_labels=True
+            arch.graph,
+            node_color="deepskyblue",
+            edge_color="dimgray",
+            arrows=True,
+            with_labels=True,
         )
         plt.savefig("architecture.svg")
     utils.print_success("Built architecture.")
@@ -51,7 +54,7 @@ def gen_config_files(args=None):
 
     if utils.output_is_compose():
         print("\nWriting architecture to Docker Compose file...")
-        exporter = compose_exporter.ComposeExporter(arch, "docker-compose.yml")
+        exporter = compose_exporter.ComposeExporter(arch, "docker-compose.yaml")
         exporter.export()
         utils.print_success("Wrote architecture to Docker Compose file.")
     elif utils.output_is_k8s():
@@ -67,5 +70,5 @@ def gen_config_files(args=None):
     return os.EX_OK
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(gen_config_files(sys.argv[1:]))

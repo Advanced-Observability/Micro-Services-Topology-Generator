@@ -1,9 +1,0 @@
-  network_telemetry:
-    name: network_telemetry
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-       - subnet: 0.0.4.0/22
-         gateway: 0.0.4.1
-

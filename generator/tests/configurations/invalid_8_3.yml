@@ -1,4 +1,0 @@
-r1:
-  type: router
-  connections:
-    - maxime: test

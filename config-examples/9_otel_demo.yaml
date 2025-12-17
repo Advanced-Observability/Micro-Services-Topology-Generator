@@ -1,0 +1,138 @@
+ad:
+  type: service
+  port: 9555
+  endpoints:
+    - entrypoint: /GetAds
+      respsize: 224
+
+cart:
+  type: service
+  port: 7070
+  endpoints:
+    - entrypoint: /AddItem
+      respsize: 2
+    - entrypoint: /GetCart
+      respsize: 169
+    - entrypoint: /EmptyCart
+      respsize: 2
+
+checkout:
+  type: service
+  port: 5050
+  endpoints:
+    - entrypoint: /PlaceOrder
+      respsize: 62
+      connections:
+        - path: cart
+          url: /GetCart
+        - path: catalog
+          url: /GetProduct
+        - path: shipping
+          url: /GetQuote
+        - path: currency
+          url: /Convert
+        - path: payment
+          url: /Charge
+        - path: shipping
+          url: /ShipOrder
+        - path: cart
+          url: /EmptyCart
+        - path: email
+          url: /send_order_confirmation
+
+currency:
+  type: service
+  port: 7001
+  endpoints:
+    - entrypoint: /GetSupportedCurrencies
+      respsize: 248
+    - entrypoint: /Convert
+      respsize: 45
+
+email:
+  type: service
+  port: 6060
+  endpoints:
+    - entrypoint: /send_order_confirmation
+      respsize: 30
+
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      respsize: 256
+    - entrypoint: /api/cart
+      respsize: 119
+      connections:
+        - path: cart
+          url: /GetCart
+    - entrypoint: /api/checkout
+      respsize: 1697
+      connections:
+        - path: checkout
+          url: /PlaceOrder
+        - path: catalog
+          url: /GetProduct
+    - entrypoint: /api/data
+      respsize: 185
+      connections:
+        - path: ad
+          url: /GetAds
+    - entrypoint: /api/products
+      respsize: 6323
+      connections:
+        - path: catalog
+          url: /ListProducts
+    - entrypoint: /api/recos
+      respsize: 2758
+      connections:
+        - path: reco
+          url: /Listreco
+        - path: catalog
+          url: /GetProduct
+
+payment:
+  type: service
+  port: 50051
+  endpoints:
+    - entrypoint: /Charge
+      respsize: 59
+
+catalog:
+  type: service
+  port: 3550
+  endpoints:
+    - entrypoint: /ListProducts
+      respsize: 7050
+    - entrypoint: /GetProduct
+      respsize: 578
+
+quota:
+  type: service
+  port: 8090
+  endpoints:
+    - entrypoint: /getquote
+      respsize: 45
+
+reco:
+  type: service
+  port: 9001
+  endpoints:
+    - entrypoint: /Listrecos
+      respsize: 110
+      connections:
+        - path: catalog
+          url: /ListProduct
+
+shipping:
+  type: service
+  port: 50050
+  endpoints:
+    - entrypoint: /GetQuote
+      respsize: 59
+      connections:
+        - path: quota
+          url: /getquote
+    - entrypoint: /ShipOrder
+      respsize: 59

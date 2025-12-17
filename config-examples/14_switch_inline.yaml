@@ -1,0 +1,25 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      respsize: 512
+      connections:
+        - path: s1->s2->db
+          url: /
+s1:
+  type: switch
+  connections:
+    - path: frontend
+    - path: s2
+s2:
+  type: switch
+  connections:
+    - path: s1
+    - path: db
+db:
+  type: service
+  port: 10001
+  endpoints:
+    - entrypoint: /
+      respsize: 128

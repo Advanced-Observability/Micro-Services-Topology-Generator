@@ -33,7 +33,7 @@ The following `<options>` are available.
 
 ### Optional
 
-- `--config <path>`: path towards the configuration file. If not specified, it will default to `./config.yml`;
+- `--config <path>`: path towards the configuration file. If not specified, it will default to `./config.yaml`;
 - `--ioam`: use IOAM in the generated topology;
 - `--jaeger`: add OpenTelemetry and Jaeger in the generated topology;
 - `--clt`: add Cross-Layer-Telemetry in the generated topology;
@@ -54,7 +54,7 @@ The tool uses the following directories and files:
 - `templates/` directory contains the templates used by the generator to create the generated files;
 - `tests/` directory contains the tests for the generator;
 - `architecture.py` represents the architecture as defined in the configuration file;
-- `compose_exporter` exports the internal representation into a `docker-compose.yml` file;
+- `compose_exporter` exports the internal representation into a `docker-compose.yaml` file;
 - `config_parser.py` is the parser for the configuration files;
 - `constants.py` contains constant values used throughout the code;
 - `network.py` represent a network (IP subnet);

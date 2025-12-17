@@ -1,0 +1,138 @@
+adservice:
+  type: service
+  port: 9555
+  endpoints:
+  - entrypoint: /GetAds
+    respsize: 224
+
+cartservice:
+  type: service
+  port: 7070
+  endpoints:
+    - entrypoint: /AddItem
+      respsize: 2
+    - entrypoint: /GetCart
+      respsize: 169
+    - entrypoint: /EmptyCart
+      respsize: 2
+
+checkoutservice:
+  type: service
+  port: 5050
+  endpoints:
+    - entrypoint: /PlaceOrder
+      respsize: 62
+      connections:
+        - path: cartservice
+          url: /GetCart
+        - path: productcatalogservice
+          url: /GetProduct
+        - path: shippingservice
+          url: /GetQuote
+        - path: currencyservice
+          url: /Convert
+        - path: paymentservice
+          url: /Charge
+        - path: shippingservice
+          url: /ShipOrder
+        - path: cartservice
+          url: /EmptyCart
+        - path: emailservice
+          url: /send_order_confirmation
+
+currencyservice:
+  type: service
+  port: 7001
+  endpoints:
+    - entrypoint: /GetSupportedCurrencies
+      respsize: 248
+    - entrypoint: /Convert
+      respsize: 45
+
+emailservice:
+  type: service
+  port: 6060
+  endpoints:
+    - entrypoint: /send_order_confirmation
+      respsize: 30
+
+frontend:
+  type: service
+  port: 8080
+  endpoints:
+    - entrypoint: /
+      respsize: 43735
+    - entrypoint: /api/cart
+      respsize: 119
+      connections:
+        - path: cartservice
+          url: /GetCart
+    - entrypoint: /api/checkout
+      respsize: 1697
+      connections: 
+        - path: checkoutservice
+          url: /PlaceOrder
+        - path: productcatalogservice
+          url: /GetProduct
+    - entrypoint: /api/data
+      respsize: 185
+      connections:
+        - path: adservice
+          url: /GetAds
+    - entrypoint: /api/products
+      respsize: 6323
+      connections:
+        - path: productcatalogservice
+          url: /ListProducts
+    - entrypoint: /api/recommendations
+      respsize: 2758
+      connections:
+        - path: recommendationservice
+          url: /ListRecommendation
+        - path: productcatalogservice
+          url: /GetProduct
+
+paymentservice:
+  type: service
+  port: 50051
+  endpoints:
+    - entrypoint: /Charge
+      respsize: 59
+
+productcatalogservice:
+  type: service
+  port: 3550
+  endpoints:
+    - entrypoint: /ListProducts
+      respsize: 7050
+    - entrypoint: /GetProduct
+      respsize: 578
+
+quoteservice:
+  type: service
+  port: 8090
+  endpoints:
+    - entrypoint: /getquote
+      respsize: 45
+
+recommendationservice:
+  type: service
+  port: 9001
+  endpoints:
+    - entrypoint: /ListRecommendations
+      respsize: 110
+      connections:
+        - path: productcatalogservice
+          url: /ListProduct
+
+shippingservice:
+  type: service
+  port: 50050
+  endpoints:
+    - entrypoint: /GetQuote
+      respsize: 59
+      connections:
+        - path: quoteservice
+          url: /getquote
+    - entrypoint: /ShipOrder
+      respsize: 59

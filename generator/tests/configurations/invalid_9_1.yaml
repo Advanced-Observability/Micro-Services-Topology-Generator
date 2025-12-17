@@ -1,0 +1,20 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      respsize: 512
+      connections:
+        - path: r1->db
+          url: /
+          mtu: abcd
+r1:
+  type: router
+  neighbors:
+    - db
+db:
+  type: service
+  port: 10001
+  endpoints:
+    - entrypoint: /
+      respsize: 128

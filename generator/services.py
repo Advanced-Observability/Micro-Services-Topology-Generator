@@ -42,15 +42,19 @@ class Service(entities.Entity):
             self.expose = True
 
     def __str__(self) -> str:
-        return f"Service: {self.name} - ports: {self.ports} - external: {self.external} "\
+        return (
+            f"Service: {self.name} - ports: {self.ports} - external: {self.external} "
             f"- image_name = {self.image_name} - {super().__str__()}"
+        )
 
     def pretty(self) -> str:
-        return f"Service: {self.name}"\
-            f"\n\t- ports: {self.ports}"\
-            f"\n\t- external: {self.external}"\
-            f"\n\t- image: {self.image_name}"\
+        return (
+            f"Service: {self.name}"
+            f"\n\t- ports: {self.ports}"
+            f"\n\t- external: {self.external}"
+            f"\n\t- image: {self.image_name}"
             f"\n\t- {super().pretty()}"
+        )
 
     def export_commands(self) -> str:
         """Generate one line combining all commands."""
@@ -78,10 +82,7 @@ class Service(entities.Entity):
         """Export the service in the given docker compose file."""
 
         if self.external:
-            mappings = {
-                "name": self.name,
-                "dockerImage": self.image_name
-            }
+            mappings = {"name": self.name, "dockerImage": self.image_name}
             file.write(constants.EXTERNAL_TEMPLATE.substitute(mappings))
         else:
             # write template
@@ -110,7 +111,11 @@ class Service(entities.Entity):
         # sysctl configuration
         if utils.is_using_clt() or utils.is_using_ioam_only():
             file.write("    sysctls:")
-            file.write(Template(constants.COMPOSE_SYSCTL_DEFAULTS).substitute({"ioam_id": self.ioam_id}))
+            file.write(
+                Template(constants.COMPOSE_SYSCTL_DEFAULTS).substitute(
+                    {"ioam_id": self.ioam_id}
+                )
+            )
 
         # depends_on
         self.export_compose_depends_on(file)
@@ -122,7 +127,7 @@ class Service(entities.Entity):
         if len(self.extra_hosts) > 0:
             file.write("    extra_hosts:\n")
             for host, ip in self.extra_hosts.items():
-                file.write(f"      - \"{host}:{ip}\"\n")
+                file.write(f'      - "{host}:{ip}"\n')
 
         # export commands
         self.export_commands()
@@ -150,12 +155,7 @@ class Service(entities.Entity):
             mac = net.get_entity_mac(self.name)
             ifname = utils.get_interface_name(i, self.name)
 
-            mappings = {
-                "net_name": name,
-                "ip": ip,
-                "mac": mac,
-                "ifname": ifname
-            }
+            mappings = {"net_name": name, "ip": ip, "mac": mac, "ifname": ifname}
 
             if utils.topology_is_ipv4():
                 file.write(constants.COMPOSE_IPV4_NET_SPEC.substitute(mappings))
@@ -166,7 +166,9 @@ class Service(entities.Entity):
         """Export depends on in Docker compose."""
 
         # no dependence
-        if len(self.depends_on) == 0 and not (utils.is_using_clt() or utils.is_using_jaeger()):
+        if len(self.depends_on) == 0 and not (
+            utils.is_using_clt() or utils.is_using_jaeger()
+        ):
             return
 
         file.write("    depends_on:\n")
@@ -193,7 +195,10 @@ class Service(entities.Entity):
 
         cmd = ""
         if not self.external:
-            cmd = constants.K8S_POD_CMD.format(self.export_commands() + f" & {utils.export_single_command(constants.LAUNCH_SERVICE)}")
+            cmd = constants.K8S_POD_CMD.format(
+                self.export_commands()
+                + f" & {utils.export_single_command(constants.LAUNCH_SERVICE)}"
+            )
         else:
             with open(constants.COMMANDS_FILE, "a", encoding="utf-8") as f:
                 cmds = self.export_commands()
@@ -207,15 +212,15 @@ class Service(entities.Entity):
             "shortName": self.name,
             "image": self.image_name,
             "cmd": cmd,
-            "CLT_ENABLE": f"\"{os.environ[constants.CLT_ENABLE_ENV]}\"",
+            "CLT_ENABLE": f'"{os.environ[constants.CLT_ENABLE_ENV]}"',
             "JAEGER_HOSTNAME": constants.K8S_JAEGER_HOSTNAME,
-            "JAEGER_ENABLE": f"\"{os.environ[constants.JAEGER_ENABLE_ENV]}\"",
+            "JAEGER_ENABLE": f'"{os.environ[constants.JAEGER_ENABLE_ENV]}"',
             "COLLECTOR_HOSTNAME": constants.K8S_COLLECTOR_HOSTNAME,
             "HTTP_VER": os.environ[constants.HTTP_VER_ENV],
             "CERT_FILE": "empty",
             "KEY_FILE": "empty",
-            "IP_VERSION": f"\"{os.environ[constants.IP_VERSION_ENV]}\"",
-            "ports": ports
+            "IP_VERSION": f'"{os.environ[constants.IP_VERSION_ENV]}"',
+            "ports": ports,
         }
 
         if utils.topology_is_https():
@@ -225,12 +230,20 @@ class Service(entities.Entity):
         pod = constants.TEMPLATE_K8S_POD.substitute(pod_config)
 
         # output file
-        f = open(os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_pod.yaml"), "w", encoding="utf-8")
+        f = open(
+            os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_pod.yaml"),
+            "w",
+            encoding="utf-8",
+        )
         f.write(pod)
 
         # write sysctls
         if utils.is_using_clt() or utils.is_using_ioam_only():
-            f.write(Template(constants.K8S_SYSCTL_DEFAULTS).substitute({"ioam_id": self.ioam_id}))
+            f.write(
+                Template(constants.K8S_SYSCTL_DEFAULTS).substitute(
+                    {"ioam_id": self.ioam_id}
+                )
+            )
 
         # write extra hosts
         if len(self.extra_hosts) > 0:
@@ -255,8 +268,12 @@ class Service(entities.Entity):
         service_config = {
             "name": f"{self.name}-svc",
             "podName": f"{self.name}-pod",
-            "ports": ports
+            "ports": ports,
         }
         service = constants.TEMPLATE_K8S_SERVICE.substitute(service_config)
-        with open(os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_service.yaml"), "w", encoding="utf-8") as f:
+        with open(
+            os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_service.yaml"),
+            "w",
+            encoding="utf-8",
+        ) as f:
             f.write(service)

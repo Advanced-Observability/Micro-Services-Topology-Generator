@@ -18,7 +18,7 @@ import architecture
 class K8SExporter(exporter.Exporter):
     """Export architecture to Kubernetes configuration files."""
 
-    def __init__(self, arch: architecture.Architecure) -> None:
+    def __init__(self, arch: architecture.Architecture) -> None:
         """
         Export the architecture to Kubernetes configuration file.
 

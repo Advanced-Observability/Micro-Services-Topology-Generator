@@ -1,0 +1,28 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      respsize: 512
+      connections:
+        - path: r1->db
+          url: /
+
+r1:
+  type: router
+  neighbors:
+    - shopping
+
+db:
+  type: service
+  port: 81
+  endpoints:
+    - entrypoint: /
+      respsize: 128
+
+shopping:
+  type: service
+  port: 82
+  endpoints:
+    - entrypoint: /
+      respsize: 128

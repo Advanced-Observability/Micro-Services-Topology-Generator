@@ -1,8 +1,0 @@
-frontend:
-  type: service
-  port: 80
-  endpoints:
-    - entrypoint: /
-      psize: 512
-      connections:
-        - url: /

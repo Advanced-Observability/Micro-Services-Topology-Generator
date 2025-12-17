@@ -20,10 +20,17 @@ class NetworkType(Enum):
     """Layer 3 IP network."""
 
 
-class NetworkInterface():
+class NetworkInterface:
     """Represent a network interface."""
 
-    def __init__(self, entity, next_hop, ip: ipaddress.IPv4Address | ipaddress.IPv6Address | None, mac: str, vlan: int | None):
+    def __init__(
+        self,
+        entity,
+        next_hop,
+        ip: ipaddress.IPv4Address | ipaddress.IPv6Address | None,
+        mac: str,
+        vlan: int | None,
+    ):
         """
         Create a network interface.
 
@@ -39,7 +46,7 @@ class NetworkInterface():
         self.vlan = vlan
 
     def __str__(self):
-        return f"EntityName = {self.entity.name} - next hop = {self.next_hop.name if self.next_hop is not None else "None"} - ip = {self.ip} - mac = {self.mac} - vlan = {self.vlan}"
+        return f"EntityName = {self.entity.name} - next hop = {self.next_hop.name if self.next_hop is not None else 'None'} - ip = {self.ip} - mac = {self.mac} - vlan = {self.vlan}"
 
 
 class Network:
@@ -76,14 +83,20 @@ class Network:
 
         macs = utils.convert_net_id_to_mac_addresses(self.network_id)
 
-        self.interfaces.append(NetworkInterface(begin, end, next(self.hosts), macs[0], None))
-        self.interfaces.append(NetworkInterface(end, None, next(self.hosts), macs[1], None))
+        self.interfaces.append(
+            NetworkInterface(begin, end, next(self.hosts), macs[0], None)
+        )
+        self.interfaces.append(
+            NetworkInterface(end, None, next(self.hosts), macs[1], None)
+        )
 
     def set_l2_network(self, name: str) -> None:
         """Configure network as a L2 network."""
         self.name = Network.generate_l2_net_name(name)
 
-    def add_network_interface(self, entity, next_hop, ethernet=False, vlan=None) -> None:
+    def add_network_interface(
+        self, entity, next_hop, ethernet=False, vlan=None
+    ) -> None:
         """
         Add a network interface for the given entity on the network.
 
@@ -92,7 +105,9 @@ class Network:
         :param ethernet: Interface without IP address.
         """
         if not ethernet:
-            self.interfaces.append(NetworkInterface(entity, next_hop, next(self.hosts), "", vlan))
+            self.interfaces.append(
+                NetworkInterface(entity, next_hop, next(self.hosts), "", vlan)
+            )
         else:
             self.interfaces.append(NetworkInterface(entity, next_hop, None, "", vlan))
 
@@ -101,7 +116,16 @@ class Network:
         Return the network interface to reach `end` from ` begin` on this network.
         """
 
-        return next((iface for iface in self.interfaces if iface.entity.name == begin and iface.next_hop is not None and iface.next_hop.name == end), None)
+        return next(
+            (
+                iface
+                for iface in self.interfaces
+                if iface.entity.name == begin
+                and iface.next_hop is not None
+                and iface.next_hop.name == end
+            ),
+            None,
+        )
 
     def check_shared_network(self, begin: str, end: str) -> bool:
         """
@@ -121,15 +145,21 @@ class Network:
 
     def get_entity_ip(self, name: str):
         """Get IP of interface of entity with the given `name`."""
-        return next((intf.ip for intf in self.interfaces if intf.entity.name == name), None)
+        return next(
+            (intf.ip for intf in self.interfaces if intf.entity.name == name), None
+        )
 
     def get_entity_mac(self, name: str) -> str:
         """Get MAC address of interface of entity with the given `name`."""
-        return next((intf.mac for intf in self.interfaces if intf.entity.name == name), "")
+        return next(
+            (intf.mac for intf in self.interfaces if intf.entity.name == name), ""
+        )
 
     def get_entity_vlan(self, name: str) -> int | None:
         """Get VLAN of interface of entity `name`."""
-        return next((intf.vlan for intf in self.interfaces if intf.entity.name == name), None)
+        return next(
+            (intf.vlan for intf in self.interfaces if intf.entity.name == name), None
+        )
 
     def get_other_host(self, name: str):
         """
@@ -152,16 +182,20 @@ class Network:
     def string(self, separator, pretty=False) -> str:
         """Convert network to string with the given `separator`."""
         if pretty:
-            interfaces = f"{separator}\t- " + f"{separator}\t- ".join(f"{intf}" for intf in self.interfaces)
+            interfaces = f"{separator}\t- " + f"{separator}\t- ".join(
+                f"{intf}" for intf in self.interfaces
+            )
         else:
             interfaces = " | ".join(f"{intf}" for intf in self.interfaces)
 
-        rep = f"Network: {self.name}"\
-            f"{separator}- Type: {self.type}"\
-            f"{separator}- ID: {self.network_id}"\
-            f"{separator}- Subnet: {self.subnet}"\
-            f"{separator}- Gateway: {self.gateway}"\
+        rep = (
+            f"Network: {self.name}"
+            f"{separator}- Type: {self.type}"
+            f"{separator}- ID: {self.network_id}"
+            f"{separator}- Subnet: {self.subnet}"
+            f"{separator}- Gateway: {self.gateway}"
             f"{separator}- Interfaces: {interfaces}"
+        )
 
         return rep
 
@@ -215,36 +249,94 @@ class Network:
             local_iface_name = f"{local}_{remote}"
             remote_iface_name = f"{remote}_{local}"
 
-            commands.append(constants.LINUX_CREATE_VETH.format(local_iface_name, remote_iface_name))
+            commands.append(
+                constants.LINUX_CREATE_VETH.format(local_iface_name, remote_iface_name)
+            )
 
             # move one end into container and set up
-            commands.append(f"pid=$({constants.DOCKER_GET_PID.substitute({"name": local})})")
-            commands.append(constants.LINUX_MOVE_VETH_TO_NS.format(local_iface_name, "$pid"))
-            commands.append(utils.generate_command(constants.LINUX_SET_LINK_UP.format(local_iface_name), local, False))
+            commands.append(
+                f"pid=$({constants.DOCKER_GET_PID.substitute({'name': local})})"
+            )
+            commands.append(
+                constants.LINUX_MOVE_VETH_TO_NS.format(local_iface_name, "$pid")
+            )
+            commands.append(
+                utils.generate_command(
+                    constants.LINUX_SET_LINK_UP.format(local_iface_name), local, False
+                )
+            )
             # set ip in container if any
             if iface.ip is not None:
                 ip = f"{iface.ip}/{self.network.prefixlen}"
-                commands.append(utils.generate_command(constants.LINUX_SET_IP_ADDRESS.format(ip, local_iface_name), local, False))
+                commands.append(
+                    utils.generate_command(
+                        constants.LINUX_SET_IP_ADDRESS.format(ip, local_iface_name),
+                        local,
+                        False,
+                    )
+                )
             # add port in ovs if it's a switch
             if local_switch and self.get_entity_vlan(remote) is not None:
-                commands.append(utils.generate_command(constants.OVS_ADD_PORT_VLAN.format(local, local_iface_name, self.get_entity_vlan(remote)), local, False))
+                commands.append(
+                    utils.generate_command(
+                        constants.OVS_ADD_PORT_VLAN.format(
+                            local, local_iface_name, self.get_entity_vlan(remote)
+                        ),
+                        local,
+                        False,
+                    )
+                )
             elif local_switch:
-                commands.append(utils.generate_command(constants.OVS_ADD_PORT.format(local, local_iface_name), local, False))
+                commands.append(
+                    utils.generate_command(
+                        constants.OVS_ADD_PORT.format(local, local_iface_name),
+                        local,
+                        False,
+                    )
+                )
 
             # move other end into other container and set up
-            commands.append(f"pid=$({constants.DOCKER_GET_PID.substitute({"name": remote})})")
-            commands.append(constants.LINUX_MOVE_VETH_TO_NS.format(remote_iface_name, "$pid"))
-            commands.append(utils.generate_command(constants.LINUX_SET_LINK_UP.format(remote_iface_name), remote, False))
+            commands.append(
+                f"pid=$({constants.DOCKER_GET_PID.substitute({'name': remote})})"
+            )
+            commands.append(
+                constants.LINUX_MOVE_VETH_TO_NS.format(remote_iface_name, "$pid")
+            )
+            commands.append(
+                utils.generate_command(
+                    constants.LINUX_SET_LINK_UP.format(remote_iface_name), remote, False
+                )
+            )
             # set ip in other container if any
             remote_ip = self.get_entity_ip(remote)
             if remote_ip is not None:
                 ip = f"{remote_ip}/{self.network.prefixlen}"
-                commands.append(utils.generate_command(constants.LINUX_SET_IP_ADDRESS.format(ip, remote_iface_name), remote, False))
+                commands.append(
+                    utils.generate_command(
+                        constants.LINUX_SET_IP_ADDRESS.format(ip, remote_iface_name),
+                        remote,
+                        False,
+                    )
+                )
             # add port in ovs if it's a switch
             if remote_switch and self.get_entity_vlan(local) is not None:
-                commands.append(utils.generate_command(constants.OVS_ADD_PORT_VLAN.format(remote, remote_iface_name, self.get_entity_vlan(local)), remote, False))
+                commands.append(
+                    utils.generate_command(
+                        constants.OVS_ADD_PORT_VLAN.format(
+                            remote, remote_iface_name, self.get_entity_vlan(local)
+                        ),
+                        remote,
+                        False,
+                    )
+                )
             elif remote_switch:
-                commands.append(utils.generate_command(constants.OVS_ADD_PORT.format(remote, remote_iface_name), remote, False))
+                commands.append(
+                    utils.generate_command(
+                        constants.OVS_ADD_PORT.format(remote, remote_iface_name),
+                        remote,
+                        False,
+                    )
+                )
 
             # TODO ovs add vlan
 
@@ -257,11 +349,7 @@ class Network:
     def export_compose_l3(self, file) -> None:
         """Export the L3 network in the given Docker compose `file`."""
 
-        mappings = {
-            "name": self.name,
-            "subnet": self.subnet,
-            "gateway": self.gateway
-        }
+        mappings = {"name": self.name, "subnet": self.subnet, "gateway": self.gateway}
         if utils.topology_is_ipv4():
             file.write(constants.NETWORK_IPV4_TEMPLATE.substitute(mappings))
         else:

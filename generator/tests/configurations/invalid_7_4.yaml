@@ -1,0 +1,19 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      respsize: 512
+      connections:
+        - path: r1->r2
+          url: /
+
+r1:
+  type: router
+  neighbors:
+    - r2
+
+r2:
+  type: router
+  neighbors:
+    - frontend

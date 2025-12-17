@@ -1,0 +1,15 @@
+frontend:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      respsize: 512
+      connections:
+        - path: db
+          url: /
+db:
+  type: service
+  port: 80
+  endpoints:
+    - entrypoint: /
+      respsize: 128

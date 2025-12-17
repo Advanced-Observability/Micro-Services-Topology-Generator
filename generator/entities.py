@@ -30,7 +30,9 @@ class Entity(ABC):
         self.depends_on: set[str] = set()
         # hosts to which the entity is connected to in end-to-end connections
         # used for dns configuration
-        self.extra_hosts: dict[str, ipaddress.IPv4Address | ipaddress.IPv6Address] = dict()
+        self.extra_hosts: dict[str, ipaddress.IPv4Address | ipaddress.IPv6Address] = (
+            dict()
+        )
         # end-to-end connections
         self.e2e_conns: set[str] = set()
         # list of commands to execute to configure the entity
@@ -39,14 +41,16 @@ class Entity(ABC):
     def string(self, separator) -> str:
         """String representation of entity."""
 
-        return f"Entity: {self.name}"\
-                f"{separator}- ioam_id: {self.ioam_id}"\
-                f"{separator}- k8s IP: {self.kubernetes_ip}"\
-                f"{separator}- networks: {", ".join(net.name for net in self.attached_networks)}"\
-                f"{separator}- e2e-connections: {self.e2e_conns}"\
-                f"{separator}- depends-on: {self.depends_on}"\
-                f"{separator}- extra-hosts: {self.extra_hosts}"\
-                f"{separator}- commands: {" | ".join(map(str, self.commands))}"
+        return (
+            f"Entity: {self.name}"
+            f"{separator}- ioam_id: {self.ioam_id}"
+            f"{separator}- k8s IP: {self.kubernetes_ip}"
+            f"{separator}- networks: {', '.join(net.name for net in self.attached_networks)}"
+            f"{separator}- e2e-connections: {self.e2e_conns}"
+            f"{separator}- depends-on: {self.depends_on}"
+            f"{separator}- extra-hosts: {self.extra_hosts}"
+            f"{separator}- commands: {' | '.join(map(str, self.commands))}"
+        )
 
     def __str__(self) -> str:
         return self.string(" ")
@@ -78,12 +82,19 @@ class Entity(ABC):
         If not found, return None.
         """
 
-        return next((i for i, net in enumerate(self.attached_networks) if net.name == name), None)
+        return next(
+            (i for i, net in enumerate(self.attached_networks) if net.name == name),
+            None,
+        )
 
     def count_l3_networks(self) -> int:
         """Count number of L3 networks to which the entity is attached."""
 
-        return sum(1 for net in self.attached_networks if net.type == network.NetworkType.L3_NET)
+        return sum(
+            1
+            for net in self.attached_networks
+            if net.type == network.NetworkType.L3_NET
+        )
 
     @abstractmethod
     def export_compose(self, file) -> None:

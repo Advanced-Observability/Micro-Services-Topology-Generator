@@ -5,28 +5,13 @@
 # | |  | |____) |  | | | |__| |
 # |_|  |_|_____/   |_|  \_____|
 
-SERVICE_DIR=service
 GEN_DIR=generator
-DOCKER_DIR=docker
-BINARY=service
+DOCKER_DIR=docker-images
 PYTHON=python3
-CONFIG?=config.yml
+CONFIG?=config.yaml
 
 .PHONY: default
-default: ipv4_jaeger images
-
-# -----------------------------------------------
-# SERVICE BINARY
-# -----------------------------------------------
-
-.PHONY: service
-service: $(SERVICE_DIR)/$(BINARY)
-
-$(SERVICE_DIR)/$(BINARY): $(SERVICE_DIR)/*.go $(SERVICE_DIR)/go.mod $(SERVICE_DIR)/go.sum
-	@echo ""
-	@echo "Building executable for service"
-	CGO_ENABLED=0 go build -C $(SERVICE_DIR) -tags netgo -o $(BINARY)
-	cp $@ $(DOCKER_DIR)/service
+default: ipv4 images
 
 # -----------------------------------------------
 # DOCKER IMAGES
@@ -39,24 +24,18 @@ images: mstg_router mstg_service mstg_fw mstg_switch
 
 images_clt: mstg_router_clt mstg_service_clt mstg_ioam_collector mstg_fw mstg_switch
 
-mstg_service: $(DOCKER_DIR)/service/Dockerfile $(SERVICE_DIR)/$(BINARY) $(CONFIG)
+mstg_service: $(DOCKER_DIR)/service/Dockerfile $(CONFIG)
 	@echo ""
 	@echo "Building Docker image for service"
 	@echo "Using config file $(CONFIG)"
-	cp $(CONFIG) $(DOCKER_DIR)/service/config.yml
-	cp $(SERVICE_DIR)/server.key $(DOCKER_DIR)/service
-	cp $(SERVICE_DIR)/server.crt $(DOCKER_DIR)/service
-	cp $(SERVICE_DIR)/$(BINARY) $(DOCKER_DIR)/service
+	cp $(CONFIG) $(DOCKER_DIR)/service/config.yaml
 	docker build -t $@ -f $< $(DOCKER_DIR)/service
 
-mstg_service_clt: $(DOCKER_DIR)/service/Dockerfile_clt $(SERVICE_DIR)/$(BINARY) $(CONFIG)
+mstg_service_clt: $(DOCKER_DIR)/service/Dockerfile_clt $(CONFIG)
 	@echo ""
 	@echo "Building Docker image for service with CLT"
 	@echo "Using config file $(CONFIG)"
-	cp $(CONFIG) $(DOCKER_DIR)/service/config.yml
-	cp $(SERVICE_DIR)/server.key $(DOCKER_DIR)/service
-	cp $(SERVICE_DIR)/server.crt $(DOCKER_DIR)/service
-	cp $(SERVICE_DIR)/$(BINARY) $(DOCKER_DIR)/service
+	cp $(CONFIG) $(DOCKER_DIR)/service/config.yaml
 	docker build -t $@ -f $< $(DOCKER_DIR)/service
 
 mstg_router: $(DOCKER_DIR)/router/Dockerfile
@@ -220,8 +199,7 @@ k8s_clt_https: $(GEN_DIR)/*.py $(CONFIG)
 .PHONY: mstg_help mstg_tests
 
 clean:
-	rm -f $(SERVICE_DIR)/$(BINARY) || true
-	rm docker-compose.yml || true
+	rm docker-compose.yaml || true
 	docker rmi -f mstg_service 2>/dev/null || true
 	docker rmi -f mstg_service_clt 2>/dev/null || true
 	docker rmi -f mstg_router 2>/dev/null || true
@@ -231,10 +209,10 @@ clean:
 
 start:
 	docker compose up --force-recreate --remove-orphans --detach
-	@chmod +x commands.sh && bash commands.sh || true
+	@chmod +x commands.sh && sudo ./commands.sh || true
 	@echo ""
 	@echo "All microservices are running."
-	@grep -q jaegertracing/all-in-one docker-compose.yml && echo "Go to http://localhost:16686 for the Jaeger UI." || true
+	@grep -q jaegertracing/all-in-one docker-compose.yaml && echo "Go to http://localhost:16686 for the Jaeger UI." || true
 
 stop:
 	docker compose down --remove-orphans --volumes -t 0
@@ -247,6 +225,8 @@ restart: stop start
 # commands.sh is executed for external images
 k8s_start: kind_add_images
 	kubectl apply -f k8s_configs
+	sleep 5
+	@chmod +x commands.sh && bash commands.sh || true
 	@echo "All pods and services have been deployed"
 
 k8s_stop:

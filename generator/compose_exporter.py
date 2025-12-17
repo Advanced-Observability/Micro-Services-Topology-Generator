@@ -15,7 +15,7 @@ import architecture
 class ComposeExporter(exporter.Exporter):
     """Export architecture to a Docker Compose configuration."""
 
-    def __init__(self, arch: architecture.Architecure, filename: str) -> None:
+    def __init__(self, arch: architecture.Architecture, filename: str) -> None:
         """
         Export the architecture in the given file.
 
@@ -26,7 +26,7 @@ class ComposeExporter(exporter.Exporter):
         self.filename = filename
 
     def write_entity_type(self, file, type) -> None:
-        '''Write entities with the given `type` inside the given docker compose `file`.'''
+        """Write entities with the given `type` inside the given docker compose `file`."""
 
         for entity in self.arch.entities:
             if isinstance(entity, type):
@@ -34,7 +34,7 @@ class ComposeExporter(exporter.Exporter):
                 file.write("\n")
 
     def write_networks(self, file) -> None:
-        '''Write all the networks.'''
+        """Write all the networks."""
         utils.print_info("Writing networks...")
         if utils.is_using_jaeger() or self.arch.count_l3_networks() > 0:
             file.write("networks:\n")
@@ -49,7 +49,7 @@ class ComposeExporter(exporter.Exporter):
             file.write("\n")
 
     def write_containers(self, file) -> None:
-        '''Write the containers.'''
+        """Write the containers."""
         utils.print_info("Writing all the containers...")
         file.write("services:\n")
 
@@ -60,6 +60,7 @@ class ComposeExporter(exporter.Exporter):
                 file.write(constants.COMPOSE_JAEGER_IPV4)
             else:
                 file.write(constants.COMPOSE_JAEGER_IPV6)
+            file.write("\n")
 
         # write ioam collector if clt
         if utils.is_using_clt():
@@ -79,9 +80,9 @@ class ComposeExporter(exporter.Exporter):
     def export(self):
         # empty commands file
         with open(constants.COMMANDS_FILE, "w", encoding="utf-8") as f:
-            f.write("#!/bin/bash\n\n")
+            f.write("#!/bin/sh\n\n")
 
-        with open(self.filename, 'w', encoding="utf-8") as f:
+        with open(self.filename, "w", encoding="utf-8") as f:
             # need to export networks first because will add interfaces inside containers
             # if interfaces are not added first, ip route command will fail in other entities
             self.write_networks(f)

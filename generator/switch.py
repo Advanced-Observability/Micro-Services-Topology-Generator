@@ -24,11 +24,11 @@ class Switch(entities.Entity):
     def get_vlan_id(self, name: str) -> int | None:
         """Get VLAN ID of entity `name`."""
 
-        if "connections" not in self.config or self.config["connections"] is None:
+        if "neighbors" not in self.config or self.config["neighbors"] is None:
             return None
 
-        for conn in self.config["connections"]:
-            if conn["path"] == name and "vlan" in conn:
+        for conn in self.config["neighbors"]:
+            if isinstance(conn, dict) and conn["hop"] == name and "vlan" in conn:
                 return conn["vlan"]
 
         return None
@@ -46,7 +46,7 @@ class Switch(entities.Entity):
         mappings = {
             "name": self.name,
             "dockerImage": "mstg_switch",
-            "commands": utils.combine_commands(commands, separator="&&")
+            "commands": utils.combine_commands(commands, separator="&&"),
         }
         file.write(constants.SWITCH_TEMPLATE.substitute(mappings))
 
