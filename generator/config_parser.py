@@ -2,7 +2,6 @@
 Configuration parser for MSTG.
 """
 
-import os
 import re
 import yaml
 import networkx as nx
@@ -317,8 +316,8 @@ def check_connection_specifications(name: str, entity, connections: list) -> boo
         mandatory_list = constants.CONNECTION_EXTERNAL_MANDATORY_FIELDS
     elif entity_type == "firewall":
         mandatory_list = constants.CONNECTION_FIREWALL_MANDATORY_FIELDS
-    elif entity_type == "switch":  # for SW, connections is list of directly connected entitites
-        return True
+    elif entity_type == "switch":
+        mandatory_list = constants.CONNECTION_SW_MANDATORY_FIELDS
     else:
         utils.print_error(f"Entity {entity} has unknown type {entity_type}")
         return False
@@ -330,8 +329,7 @@ def check_connection_specifications(name: str, entity, connections: list) -> boo
                 return False
 
         for field in connection:
-            if field not in constants.CONNECTION_OPTIONAL_FIELDS and\
-                field not in mandatory_list:
+            if field not in constants.CONNECTION_OPTIONAL_FIELDS and field not in mandatory_list:
                 utils.print_error(f"Entity {name} has unexpected field {field} for connection {connection}")
                 return False
 
@@ -494,13 +492,9 @@ def extract_connections(entity_config) -> list:
 
     entity_type = entity_config["type"]
 
-    if entity_type in ("router", "external", "firewall"):
+    if entity_type in ("router", "external", "firewall", "switch"):
         if "connections" in entity_config:
             conns = entity_config["connections"]
-            return conns if conns is not None else []
-    elif entity_type == "switch":
-        if "connections" in entity_config:
-            conns = [{"path": conn} for conn in entity_config["connections"]]
             return conns if conns is not None else []
     elif entity_type == "service":
         connections = []

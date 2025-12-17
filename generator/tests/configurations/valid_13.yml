@@ -11,7 +11,9 @@ s1:
   type: switch
   connections:
     - path: frontend
+      vlan: 10
     - path: db
+      vlan: 10
 db:
   type: service
   port: 10001

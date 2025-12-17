@@ -15,7 +15,7 @@ def read_file(path: str) -> str:
 
 # --------------------------------------------------------------------------------------------------
 
-VERSION = "0.0.7"
+VERSION = "0.0.8"
 
 DEFAULT_CONFIG_FILE = "./config.yml"
 
@@ -167,6 +167,7 @@ OVS_CHECK_CMD = "lsmod | awk '{print $1}' | grep -i openvswitch"
 OVS_ENABLE_SERVICE = "service openvswitch-switch start"
 OVS_ADD_BRIDGE = "ovs-vsctl add-br {}"
 OVS_ADD_PORT = "ovs-vsctl add-port {} {}"
+OVS_ADD_PORT_VLAN = "ovs-vsctl add-port {} {} tag={}"
 
 LINUX_CREATE_VETH = "ip link add {} type veth peer name {}"
 LINUX_MOVE_VETH_TO_NS = "ip link set {} netns $pid"
@@ -211,11 +212,12 @@ TELEMETRY_PORTS = [1686, 14268, 4317, 4318, 7123]
 CONNECTION_ROUTER_MANDATORY_FIELDS = ["path"]
 CONNECTION_EXTERNAL_MANDATORY_FIELDS = CONNECTION_ROUTER_MANDATORY_FIELDS
 CONNECTION_FIREWALL_MANDATORY_FIELDS = CONNECTION_ROUTER_MANDATORY_FIELDS
+CONNECTION_SW_MANDATORY_FIELDS = ["path"]
 CONNECTION_SERVICE_MANDATORY_FIELDS = ["path", "url"]
 CONNECTION_IMPAIRMENTS = [
     "mtu", "buffer_size", "rate", "delay", "jitter", "loss",
     "corrupt", "duplicate", "reorder", "timers"]
-CONNECTION_OPTIONAL_FIELDS = ["timers"]
+CONNECTION_OPTIONAL_FIELDS = ["vlan", "timers"]
 CONNECTION_OPTIONAL_FIELDS.extend(CONNECTION_IMPAIRMENTS)
 
 # -- options and timers --

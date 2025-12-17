@@ -121,7 +121,7 @@ class Architecure:
             elif entity_type == "firewall":
                 self.entities.append(firewall.Firewall(entity, self.config[entity]))
             elif entity_type == "switch":
-                self.entities.append(switch.Switch(entity))
+                self.entities.append(switch.Switch(entity, self.config[entity]))
             else:
                 raise RuntimeError(f"Entity {entity} has unexpected type {entity_type}")
 
@@ -503,8 +503,8 @@ class Architecure:
                 entity.network = net
 
                 # link switch network to entities connected to the switch
-                for conn in config_parser.get_entity(self.config, node)["connections"]:
-                    e = self.find_entity(conn)
+                for conn in entity.config["connections"]:
+                    e = self.find_entity(conn["path"])
                     e.attached_networks.append(net)
                     net.add_network_interface(e)
 

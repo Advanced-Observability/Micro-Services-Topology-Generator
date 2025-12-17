@@ -95,3 +95,7 @@ Same as [2_1_router_inline.yml](./2_1_router_inline.yml) using an external image
 2 services with a switch in between them.
 
 ![Diagram twelfth example](./diagrams/example_12.png)
+
+## Example 13 ([13_switch_vlan.yml](./13_switch_vlan.yml))
+
+Same as [12_switch.yml](./12_switch.yml) but with VLAN.

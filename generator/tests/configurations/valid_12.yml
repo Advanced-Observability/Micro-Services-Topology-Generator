@@ -10,8 +10,8 @@ frontend:
 s1:
   type: switch
   connections:
-    - frontend
-    - db
+    - path: frontend
+    - path: db
 db:
   type: service
   port: 10001

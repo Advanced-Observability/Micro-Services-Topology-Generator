@@ -10,12 +10,13 @@ import constants
 class Switch(entities.Entity):
     """Represent a switch in the architecture."""
 
-    def __init__(self, name):
+    def __init__(self, name, config):
         super().__init__(name, None)
+        self.config = config
         self.network : network.Network | None = None
 
     def __str__(self):
-        return f"Switch: {self.name} - {super().pretty()}"
+        return f"Switch: {self.name} - {super().__str__()}"
 
     def pretty(self):
         return f"Switch: {self.name}"\
@@ -74,7 +75,15 @@ class Switch(entities.Entity):
                 f.write(constants.TEMPLATE_CMD.format(self.name, constants.LINUX_SET_LINK_UP.format(switch_iface_name))+"\n")
 
                 # add interface to bridge
-                f.write(constants.TEMPLATE_CMD.format(self.name,constants.OVS_ADD_PORT.format(self.name, switch_iface_name))+"\n")
+                for conn in self.config["connections"]:
+                    if conn["path"] == e and "vlan" in conn:
+                        f.write(constants.TEMPLATE_CMD.format(
+                            self.name, constants.OVS_ADD_PORT_VLAN.format(self.name, switch_iface_name, conn["vlan"])
+                        )+"\n")
+                    elif conn["path"] == e:
+                        f.write(constants.TEMPLATE_CMD.format(
+                            self.name, constants.OVS_ADD_PORT.format(self.name, switch_iface_name)
+                        )+"\n")
 
             # bridge interface up
             f.write(constants.TEMPLATE_CMD.format(self.name, constants.LINUX_SET_LINK_UP.format(switch_iface_name))+"\n")
