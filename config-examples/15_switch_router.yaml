@@ -9,13 +9,13 @@ frontend:
           url: /
 s1:
   type: switch
-  connections:
-    - path: frontend
-    - path: r1
+  neighbors:
+    - hop: frontend
+    - hop: r1
 r1:
   type: router
-  connections:
-    - path: db
+  neighbors:
+    - hop: db
 db:
   type: service
   port: 10001

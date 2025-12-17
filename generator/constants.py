@@ -5,7 +5,6 @@ Constants used in MSTG.
 import os
 from pathlib import Path
 from string import Template
-from tokenize import EXACT_TOKEN_TYPES
 
 
 def read_file(path: str) -> str:
@@ -16,7 +15,7 @@ def read_file(path: str) -> str:
 
 # --------------------------------------------------------------------------------------------------
 
-VERSION = "0.0.10"
+VERSION = "0.0.11"
 
 DEFAULT_CONFIG_FILE = "./config.yaml"
 

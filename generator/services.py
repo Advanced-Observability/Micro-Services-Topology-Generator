@@ -71,7 +71,7 @@ class Service(entities.Entity):
                 self.add_command(constants.CMD_INLINE_SYSCTL.format(self.ioam_id))
 
         if utils.is_using_clt():
-            self.add_command(constants.LAUNCH_IOAM_AGENT)
+            self.add_command(constants.LAUNCH_IOAM_AGENT, True)
 
         self.add_command(constants.DELETE_DEFAULT_IPV4_ROUTE)
         self.add_command(constants.DELETE_DEFAULT_IPV6_ROUTE)

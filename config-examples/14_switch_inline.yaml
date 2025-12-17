@@ -9,14 +9,14 @@ frontend:
           url: /
 s1:
   type: switch
-  connections:
-    - path: frontend
-    - path: s2
+  neighbors:
+    - hop: frontend
+    - hop: s2
 s2:
   type: switch
-  connections:
-    - path: s1
-    - path: db
+  neighbors:
+    - hop: s1
+    - hop: db
 db:
   type: service
   port: 10001

@@ -3,7 +3,6 @@ Configuration parser for MSTG.
 """
 
 import re
-from string import printable
 import yaml
 import networkx as nx
 from typing import Any

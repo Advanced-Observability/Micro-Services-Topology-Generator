@@ -541,31 +541,23 @@ class Architecture:
             if not isinstance(entity, services.Service):
                 continue
 
-            for conn in entity.e2e_conns:  # parsing every end-to-end connections
+            for conn in entity.e2e_conns:  # parsing every end-to-end connection
                 hops = conn.split("->")
                 i = 0
-                while (
-                    i < len(hops) - 1
-                ):  # need to create every network for a given e2e connection
+                while i < len(hops) - 1:  # need to create every network for a given e2e connection
                     curr = self.find_entity(hops[i])
                     next = self.find_entity(hops[i + 1])
 
                     if curr is None or next is None:
                         raise RuntimeError("Could not get entity")
 
-                    if isinstance(
-                        next, switch.Switch
-                    ):  # if it's a switch need to look ahead to find next entity which is not a switch
+                    if isinstance(next, switch.Switch):  # if it's a switch need to look ahead to find next entity which is not a switch
                         j = i + 1
                         while j < len(hops):
                             tmp = self.find_entity(hops[j])
-                            if tmp is not None and not isinstance(
-                                tmp, switch.Switch
-                            ):  # entity ahead which is not a switch
+                            if tmp is not None and not isinstance(tmp, switch.Switch):  # entity ahead which is not a switch
                                 name = network.Network.generate_l2_net_name(hops[i + 1])
-                                if (
-                                    name not in net_names
-                                ):  # create network if not existant
+                                if name not in net_names:  # create network if not existant
                                     net = network.Network(network.NetworkType.L2_NET)
                                     net.set_l2_network(hops[i + 1])
                                     self.networks.append(net)
@@ -575,30 +567,37 @@ class Architecture:
                                     for k in range(i, j + 1):
                                         start = self.find_entity(hops[k])
                                         if start is None:
-                                            raise RuntimeError(
-                                                "Could not get start entity"
-                                            )
+                                            raise RuntimeError("Could not get start entity")
                                         end = (
                                             self.find_entity(hops[k + 1])
                                             if k < j
                                             else None
                                         )
+                                        prev = (
+                                            self.find_entity(hops[k - 1])
+                                            if k > 0
+                                            else None
+                                        )
 
                                         start.attached_networks.append(net)
+                                        vlanStart = start.get_vlan_id(start.name) if isinstance(start, switch.Switch) else None
+                                        vlanEnd = end.get_vlan_id(start.name) if end is not None and isinstance(end, switch.Switch) else None
+                                        vlanPrev = prev.get_vlan_id(start.name) if prev is not None and isinstance(prev, switch.Switch) else None
+                                        vlan = vlanStart or vlanEnd or vlanPrev
 
                                         if isinstance(start, switch.Switch):
                                             net.add_network_interface(
                                                 start,
                                                 end,
                                                 True,
-                                                next.get_vlan_id(hops[k]),
+                                                vlan,
                                             )
                                         else:
                                             net.add_network_interface(
                                                 start,
                                                 end,
                                                 False,
-                                                next.get_vlan_id(hops[k]),
+                                                vlan,
                                             )
                                 i = j  # parse hops after the entity (not switch) found ahead of the switch
                                 break

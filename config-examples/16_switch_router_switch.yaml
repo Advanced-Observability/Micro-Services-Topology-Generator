@@ -10,20 +10,20 @@ frontend:
 
 s1:
   type: switch
-  connections:
-    - path: frontend
-    - path: r1
+  neighbors:
+    - hop: frontend
+    - hop: r1
 
 r1:
   type: router
-  connections:
-    - path: s2
+  neighbors:
+    - hop: s2
 
 s2:
   type: switch
-  connections:
-    - path: r1
-    - path: db
+  neighbors:
+    - hop: r1
+    - hop: db
 
 db:
   type: service
