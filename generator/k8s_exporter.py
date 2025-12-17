@@ -87,15 +87,13 @@ class K8SExporter(exporter.Exporter):
         utils.print_info("Exporting IOAM collector to Kubernetes format...")
 
         # pod
-        with open(f"{constants.K8S_EXPORT_FOLDER}/ioam_collector_pod.yaml", "w", encoding="utf-8")\
-                as f:
+        with open(f"{constants.K8S_EXPORT_FOLDER}/ioam_collector_pod.yaml", "w", encoding="utf-8") as f:
             f.write(constants.K8S_COLLECTOR_POD)
 
         # service
         mapping = {"nodePort": kubernetes.Kubernetes.next_node_port()}
         service = constants.K8S_COLLECTOR_SERVICE.substitute(mapping)
-        with open(f"{constants.K8S_EXPORT_FOLDER}/ioam_collector_service.yaml", "w",
-                  encoding="utf-8") as f:
+        with open(f"{constants.K8S_EXPORT_FOLDER}/ioam_collector_service.yaml", "w", encoding="utf-8") as f:
             f.write(service)
 
     def generate_meshnet_config(self):
@@ -139,8 +137,7 @@ class K8SExporter(exporter.Exporter):
                 interfaces.append(interface)
 
             # write meshnet config for entity into file
-            with open(f"{constants.K8S_EXPORT_FOLDER}/{e.name}_meshnet.yaml", "w",
-                      encoding="utf-8") as f:
+            with open(f"{constants.K8S_EXPORT_FOLDER}/{e.name}_meshnet.yaml", "w", encoding="utf-8") as f:
                 f.write(meshnet_config)
                 for intf in interfaces:
                     f.write(intf)

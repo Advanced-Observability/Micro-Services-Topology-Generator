@@ -32,12 +32,12 @@ $(SERVICE_DIR)/$(BINARY): $(SERVICE_DIR)/*.go $(SERVICE_DIR)/go.mod $(SERVICE_DI
 # DOCKER IMAGES
 # -----------------------------------------------
 
-.PHONY: images mstg_service mstg_router mstg_fw
-.PHONY: images_clt mstg_service_clt mstg_router_clt mstg_ioam_collector mstg_fw
+.PHONY: images mstg_service mstg_router mstg_fw mstg_switch
+.PHONY: images_clt mstg_service_clt mstg_router_clt mstg_ioam_collector mstg_fw mstg_switch
 
-images: mstg_router mstg_service mstg_fw
+images: mstg_router mstg_service mstg_fw mstg_switch
 
-images_clt: mstg_router_clt mstg_service_clt mstg_ioam_collector mstg_fw
+images_clt: mstg_router_clt mstg_service_clt mstg_ioam_collector mstg_fw mstg_switch
 
 mstg_service: $(DOCKER_DIR)/service/Dockerfile $(SERVICE_DIR)/$(BINARY) $(CONFIG)
 	@echo ""
@@ -75,6 +75,11 @@ mstg_fw: $(DOCKER_DIR)/fw/Dockerfile
 	@echo "Building Docker image for firewall"
 	docker build -t $@ -f $< $(DOCKER_DIR)/fw
 
+mstg_switch: $(DOCKER_DIR)/switch/Dockerfile
+	@echo ""
+	@echo "Building Docker image for switch"
+	docker build -t $@ -f $< $(DOCKER_DIR)/switch
+
 mstg_ioam_collector: $(DOCKER_DIR)/ioam-collector/Dockerfile $(DOCKER_DIR)/ioam-collector/*.go
 	@echo ""
 	@echo "Building Docker image for IOAM collector"
@@ -91,7 +96,7 @@ mstg_ioam_collector: $(DOCKER_DIR)/ioam-collector/Dockerfile $(DOCKER_DIR)/ioam-
 ipv6: $(GEN_DIR)/*.py $(CONFIG)
 	@echo ""
 	@echo "Generating the docker compose for IPv6"
-	$(PYTHON) $(GEN_DIR)/generator.py --config $(CONFIG) --ip 6 --debug
+	$(PYTHON) $(GEN_DIR)/generator.py --config $(CONFIG) --ip 6
 
 ipv6_https: $(GEN_DIR)/*.py $(CONFIG)
 	@echo ""

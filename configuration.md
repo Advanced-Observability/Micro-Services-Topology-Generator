@@ -140,6 +140,36 @@ The values in the template are the following:
 
 A firewall can have many rules.
 
+### Specifying a switch
+
+Since v0.0.7, MSTG allows to add switches to the generated topologies.
+
+The switch uses [Open vSwitch (OvS)](https://www.openvswitch.org/) under the hood.
+
+A Switch can be specified with the following template:
+``` yml
+<switch_name>:
+  type: switch
+  connections:
+    - <nexthop>
+```
+
+The values in the template are the following:
+- `switch_name` is the name of the switch;
+- `nexthop` is the name of the next hop. You can have many connections to a single switch.
+
+> [!WARNING]
+> Switches can only be used because they rely on Linux `veth` .
+>
+> Additionally, it requires to have `root`-level access in order to be able to mangle with the `veth` interfaces.
+>
+> It requires to install openvswitch on the host. For instance, `apt install openvswitch-switch`.
+>
+> Then, you need to load openvswitch kernel module on the host: `sudo modprobe openvswitch`.
+
+> [!CAUTION]
+> As of v0.0.7, it **only** works with export to Docker Compose. Kubernetes export is **not** yet supported.
+
 ### Network options
 
 Network parameters can be configured on the connections between entities, they must be added in the connection description. The available parameter fields are:
@@ -156,6 +186,9 @@ Network parameters can be configured on the connections between entities, they m
 These options are based on [tc-netem](https://man7.org/linux/man-pages/man8/tc-netem.8.html) and [iproute2](https://wiki.linuxfoundation.org/networking/iproute2).
 
 See [6_modify_traffic.yml](./configuration_examples/6_modify_traffic.yml) for an example using network options.
+
+> [!WARNING]
+> It does **not** work with switches.
 
 ### Timers for network options
 

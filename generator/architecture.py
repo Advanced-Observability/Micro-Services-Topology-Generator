@@ -6,30 +6,36 @@ import copy
 
 import utils
 import router
+import switch
+import network
 import entities
 import services
 import firewall
 import constants
 import kubernetes
 import config_parser
-import docker_network
 
 
 class Architecure:
     '''Represent the architecture.'''
 
     def __init__(self, conf_file: str, config):
+        """
+        Create the architecture.
+
+        :param conf_file: Path towards config file.
+        :param config: Loaded YAML configuration file.
+        """
         self.filename = conf_file
         self.config = config
         self.entities: list[entities.Entity] = []
-        self.docker_networks: list[docker_network.DockerNetwork] = []
+        self.networks: list[network.Network] = []
         self.kubernetes = kubernetes.Kubernetes() if utils.output_is_k8s() else None
         self.generate_architecture()
 
     def generate_architecture(self):
         """
-        Generate the architecture based on the given config and generate
-        configuration files for docker compose or kubernetes.
+        Generate the architecture based on the given config.
         """
         # Check if the given configuration is valid
         print("Checking validity of configuration...")
@@ -42,24 +48,20 @@ class Architecure:
         self.graph = config_parser.build_directed_graph(self.config)
         utils.print_info("Generated graph")
 
-        # Generate entities and parse connections
+        # Generate entities
         print("\nCreating entities based on configuration...")
         self.generate_entities()
         utils.print_info("Generated entities")
 
+        # Check network connections
         print("\nChecking network connections...")
         self.parse_e2e_connections()
         utils.print_info("Parsed network connections")
 
-        # Generate docker networks
-        print("\nCreating docker networks...")
-        self.generate_docker_networks()
-        utils.print_info("Generated docker networks")
-
-        # Associate entities to docker networks
-        print("\nAssociating entities with docker networks...")
-        self.associate_docker_networks()
-        utils.print_info("Associated docker network to entities")
+        # Generate networks and connect to entities
+        print("\nCreating networks...")
+        self.generate_networks()
+        utils.print_info("Generated networks")
 
         # Generating ip route cmd
         print("\nGenerating ip route commands...")
@@ -83,7 +85,7 @@ class Architecure:
 
     def print(self):
         """Print the architecture"""
-        for net in self.docker_networks:
+        for net in self.networks:
             print(net)
         for e in self.entities:
             print(e)
@@ -92,7 +94,7 @@ class Architecure:
 
     def pretty_print(self):
         """Print in a pretty way the architecture."""
-        for net in self.docker_networks:
+        for net in self.networks:
             print(net.pretty())
         for e in self.entities:
             print(e.pretty())
@@ -118,45 +120,35 @@ class Architecure:
                 self.entities.append(router.Router(entity))
             elif entity_type == "firewall":
                 self.entities.append(firewall.Firewall(entity, self.config[entity]))
+            elif entity_type == "switch":
+                self.entities.append(switch.Switch(entity))
             else:
                 raise RuntimeError(f"Entity {entity} has unexpected type {entity_type}")
 
     def find_entity(self, name: str) -> entities.Entity | None:
-        '''
-        Find an entity in the architecture with the given `name`.
-        If not found, return None.
-        '''
-        for entity in self.entities:
-            if entity.name == name:
-                return entity
-
-        return None
+        '''Find an entity in the architecture with the given `name`. If not found, return None.'''
+        return next((entity for entity in self.entities if entity.name == name), None)
 
     def find_service(self, name: str) -> services.Service | None:
-        '''
-        Find service with given `name`.
-        If not found, return None.
-        '''
+        '''Find service with given `name`. If not found, return None.'''
         entity = self.find_entity(name)
-        if isinstance(entity, services.Service):
-            return entity
-        else:
-            return None
+        return entity if isinstance(entity, services.Service) else None
+
+    def find_switch(self, name: str) -> switch.Switch | None:
+        '''Find switch with given `name`. If not found, return None.'''
+        entity = self.find_entity(name)
+        return entity if isinstance(entity, switch.Switch) else None
 
     def find_network(self, name: str):
-        '''
-        Find DockerNetwork with given `name`.
-        If not found, return None.
-        '''
+        '''Find network with given `name`. If not found, return None.'''
+        return next(((net, i) for i, net in enumerate(self.networks) if net.name == name), None)
 
-        for net in self.docker_networks:
-            if net.name == name:
-                return net, self.docker_networks.index(net)
-
-        return None
+    def count_l3_networks(self) -> int:
+        """Count number of L3 networks in the architecture."""
+        return sum(1 for net in self.networks if net.type == network.NetworkType.L3_NET)
 
     def parse_e2e_connections(self) -> None:
-        '''Parse E2E connections for the services based on the architecture.'''
+        '''Parse E2E connections for the entities based on the architecture.'''
 
         for entity in self.entities:
             if isinstance(entity, router.Router):
@@ -176,9 +168,9 @@ class Architecure:
 
                 hops = conn["path"].split("->")
                 for hop in hops:
-                    entityHop = self.find_entity(hop)
-                    if entityHop is not None and isinstance(entityHop, firewall.Firewall):
-                        entityHop.e2e_conns.append(f"{entity.name}->"+conn["path"])
+                    entity_hop = self.find_entity(hop)
+                    if entity_hop is not None and isinstance(entity_hop, firewall.Firewall):
+                        entity_hop.e2e_conns.append(f"{entity.name}->"+conn["path"])
 
     def get_interface_id(self, source: str, dest: str) -> int:
         '''
@@ -186,27 +178,37 @@ class Architecure:
         If not found, return None.
         '''
 
-        entity = self.find_entity(source)
-        if entity is None:
+        source_entity = self.find_entity(source)
+        if source_entity is None:
             raise RuntimeError(f"Cannot find entity {source} in get_interface_id")
 
-        names = [net["name"] for net in entity.attached_networks]
+        names = [net.name for net in source_entity.attached_networks]
 
         # every service is connected to the telemetry network if otel/jaeger is used
-        if isinstance(entity, services.Service) and utils.is_using_jaeger() and \
-                        utils.output_is_compose():
+        if isinstance(source_entity, services.Service) and utils.is_using_jaeger() and utils.output_is_compose():
             names.append("network_telemetry")
 
-        net_name1 = docker_network.DockerNetwork.generate_name(source, dest)
-        net_name2 = docker_network.DockerNetwork.generate_name(dest, source)
+        dest_entity = self.find_entity(dest)
+        if dest_entity is None:
+            raise RuntimeError(f"Cannot find entity {dest} in get_interface_id")
+
+        # we need to add 1 for k8s because eth0 is assigned to default cni
+
+        if isinstance(source_entity, switch.Switch):
+            net_name = network.Network.generate_l2_net_name(source_entity.name)
+            return names.index(net_name) if utils.output_is_compose() else names.index(net_name) + 1
+        if isinstance(dest_entity, switch.Switch):
+            net_name = network.Network.generate_l2_net_name(dest_entity.name)
+            return names.index(net_name) if utils.output_is_compose() else names.index(net_name) + 1
+
+        net_name1 = network.Network.generate_l3_net_name(source, dest)
+        net_name2 = network.Network.generate_l3_net_name(dest, source)
         if net_name1 in names:
-            # +1 for k8s because eth0 is assigned by default cni
             return names.index(net_name1) if utils.output_is_compose() else names.index(net_name1) + 1
         if net_name2 in names:
-            # +1 for k8s because eth0 is assigned by default cni
             return names.index(net_name2) if utils.output_is_compose() else names.index(net_name2) + 1
 
-        raise RuntimeError(f"Cannot find network for {net_name1} and {net_name2}")
+        raise RuntimeError(f"Cannot find network for {source} and {dest}")
 
     def modify_etc_hosts(self) -> None:
         """
@@ -215,12 +217,15 @@ class Architecure:
         Otherwise, it uses the telemetry network for communication between the services.
         """
         for entity in self.entities:
-            if isinstance(entity, router.Router):
+            # no need to modify /etc/hosts for router and switches
+            if isinstance(entity, (router.Router, switch.Switch)):
                 continue
 
             for e2e in entity.e2e_conns:
-                # path
-                if "->" in e2e and not isinstance(entity, firewall.Firewall):
+                # if path and service:
+                #   - add first node in /etc/hosts of last node
+                #   - add last node in /etc/hosts of first node
+                if "->" in e2e and isinstance(entity, services.Service):
                     hops = e2e.split("->")
 
                     first = hops[0]
@@ -230,48 +235,49 @@ class Architecure:
                     # forward path
                     shared_penultimate_last = self.get_shared_network(penultimate, last)
                     if shared_penultimate_last is None:
-                        raise RuntimeError(f"Unable to get network between {penultimate} "
-                                           f"and {last} in associate_extra_hosts")
+                        raise RuntimeError(f"Unable to get network between {penultimate} and {last} in associate_extra_hosts")
 
-                    entity.extra_hosts.add((last, shared_penultimate_last.end_ip))
+                    entity.extra_hosts.add((last, shared_penultimate_last.get_entity_ip(last)))
 
                     # reverse path
                     shared_begin_first_hop = self.get_shared_network(entity.name, first)
                     if shared_begin_first_hop is None:
-                        raise RuntimeError(f"Unable to get network between {entity.name} "
-                                           f"and {first} in associate_extra_hosts")
+                        raise RuntimeError(f"Unable to get network between {entity.name} and {first} in associate_extra_hosts")
 
                     last_service = self.find_service(last)
                     if last_service is None:
                         raise RuntimeError("Unable to find service " + last)
 
-                    last_service.extra_hosts.add((entity.name, shared_begin_first_hop.begin_ip))
-                elif "->" in e2e and isinstance(entity, firewall.Firewall):
+                    last_service.extra_hosts.add((entity.name, shared_begin_first_hop.get_entity_ip(entity.name)))
+
+                elif "->" in e2e and isinstance(entity, firewall.Firewall):  # for FW, we need to add every hop on path in /etc/hosts of entity
                     hops = e2e.split("->")
                     for i in range(len(hops)-1):
-                        if hops[i] == entity.name:
+                        if hops[i] == entity.name:  # do not add itself in /etc/hosts
                             continue
+
                         net = self.get_shared_network(hops[i], hops[i+1])
                         if net is None:
-                            raise RuntimeError(f"Unable to get shared network between {hops[i]} "
-                                                f"and {hops[i+1]} in associate_extra_hosts")
-                        entity.extra_hosts.add((hops[i], net.begin_ip))
-                # direct connection
+                            raise RuntimeError(f"Unable to get shared network between {hops[i]} and {hops[i+1]} in associate_extra_hosts")
+                        entity.extra_hosts.add((hops[i], net.get_entity_ip(hops[i])))
+
                 else:
+                    # direct connection
+                    #   - add current node in /etc/hosts of next node
+                    #   - add next node in /etc/hosts of current node
                     net = self.get_shared_network(entity.name, e2e)
                     if net is None:
-                        raise RuntimeError(f"Unable to get shared network between {entity.name} "
-                                           f"and {e2e} in associate_extra_hosts")
+                        raise RuntimeError(f"Unable to get shared network between {entity.name} and {e2e} in associate_extra_hosts")
 
                     # forward path
-                    entity.extra_hosts.add((e2e, net.end_ip))
+                    entity.extra_hosts.add((e2e, net.get_entity_ip(e2e)))
 
                     # reverse path
                     service = self.find_service(e2e)
                     if service is None:
                         raise RuntimeError("Unable to find service " + e2e)
 
-                    service.extra_hosts.add((entity.name, net.begin_ip))
+                    service.extra_hosts.add((entity.name, net.get_entity_ip(entity.name)))
 
     def associate_dependencies(self) -> None:
         """Associate all the entities to the ones they depend on"""
@@ -281,8 +287,12 @@ class Architecure:
             if entity is None:
                 raise RuntimeError(f"Cannot find entity {e} in associate_dependencies")
 
-            connections = config_parser.extract_connections(self.config[e])
-            connections = [conn["path"] for conn in connections]
+            # SW can be started without dependency because configuration is done via
+            # commands.sh file after every container has been started
+            if isinstance(entity, switch.Switch):
+                return
+
+            connections = [conn["path"] for conn in config_parser.extract_connections(self.config[e])]
 
             for connection in connections:
                 if "->" in connection:  # connection is a path
@@ -292,15 +302,31 @@ class Architecure:
 
     def get_shared_network(self, begin: str | None, end: str | None):
         """
-        Get the Docker network shared by `begin` and `end`.
+        Get the network shared by `begin` and `end`.
         None if not found.
         """
         if begin is None or end is None:
             return None
 
-        for net in self.docker_networks:
-            if net.begin == begin and net.end == end:
-                return net
+        b = self.find_switch(begin)
+        e = self.find_switch(end)
+        if b is not None or e is not None:  # if begin or end is a switch, return the switch network
+            for net in self.networks:
+                if net.type == network.NetworkType.L2_NET:
+                    if b is not None and net.name == network.Network.generate_l2_net_name(b.name):
+                        return net
+                    if e is not None and net.name == network.Network.generate_l2_net_name(e.name):
+                        return net
+                    continue
+        else:
+            for net in self.networks:
+                iface1 = net.get_network_interface(begin)
+                iface2 = net.get_network_interface(end)
+                if iface1 is None or iface2 is None:
+                    continue
+
+                if net.type == network.NetworkType.L3_NET and iface1.entity.name == begin and iface2.entity.name == end:
+                    return net
 
         return None
 
@@ -308,6 +334,8 @@ class Architecure:
         '''Generate the IP route commands to configure the services.'''
 
         for e in self.entities:
+            # Services are located at both ends of connection
+            # Thus, we can limit to start from these entities to configure the routes of the other entities
             if not isinstance(e, services.Service):
                 continue
 
@@ -345,63 +373,71 @@ class Architecure:
         dest_ip_subnet = shared_penultimate_end.subnet
 
         # configure all entities on path
-        for i in range(0, len(hops)):
-            prev = hops[i - 1] if i > 0 else None
-            curr = hops[i]
-            next_node = hops[i + 1] if i < len(hops) - 1 else None
+        for i, _ in enumerate(hops):
+            prev_name = hops[i - 1] if i > 0 else None
+            curr_name = hops[i]
+            next_name = hops[i + 1] if i < len(hops) - 1 else None
 
-            curr_entity = self.find_entity(curr)
+            curr_entity = self.find_entity(curr_name)
             if curr_entity is None:
-                raise RuntimeError("Unable to get entity " + curr)
+                raise RuntimeError("Unable to get entity " + curr_name)
 
-            if next_node is not None:
-                next_entity = self.find_entity(next_node)
+            if next_name is not None:
+                next_entity = self.find_entity(next_name)
                 if next_entity is None:
-                    raise RuntimeError("Unable to get entity " + next_node)
+                    raise RuntimeError("Unable to get entity " + next_name)
 
-            if prev is not None:
-                prev_entity = self.find_entity(prev)
+            if prev_name is not None:
+                prev_entity = self.find_entity(prev_name)
                 if prev_entity is None:
-                    raise RuntimeError("Unable to get entity " + prev)
+                    raise RuntimeError("Unable to get entity " + prev_name)
 
             # towards dest
             if i != len(hops) - 1:
                 cmd = ""
 
-                next_net = self.get_shared_network(curr, next_node)
+                next_net = self.get_shared_network(curr_name, next_name)
                 if next_net is None:
-                    raise RuntimeError(f"Cannot get network shared by {curr} and {next_node}")
+                    raise RuntimeError(f"Cannot get network shared by {curr_name} and {next_name}")
+
+                # if its a switch network, no need to configure a L3 route
+                if next_net.type == network.NetworkType.L2_NET:
+                    continue
+
+                ip = next_net.get_entity_ip(next_name)
+                if ip is None:
+                    raise RuntimeError(f"Cannot find IP of {ip}")
 
                 if utils.topology_is_ipv6():
                     # if ioam and first node => encap ioam pto in route
                     if (utils.is_using_clt() or utils.is_using_ioam_only()) and i == 0:
-                        cmd = constants.IP6_ROUTE_PATH_IOAM.format(
-                            dest_ip_subnet, ioam_trace_hex, size_ioam_data, next_net.end_ip
-                        )
+                        cmd = constants.IP6_ROUTE_PATH_IOAM.format(dest_ip_subnet, ioam_trace_hex, size_ioam_data, ip)
                     else:
-                        cmd = constants.IP6_ROUTE_PATH_VANILLA.format(
-                            dest_ip_subnet, next_net.end_ip
-                        )
+                        cmd = constants.IP6_ROUTE_PATH_VANILLA.format(dest_ip_subnet, ip)
                 elif utils.topology_is_ipv4():
-                    cmd = constants.IP4_ROUTE_PATH_VANILLA.format(dest_ip_subnet, next_net.end_ip)
+                    cmd = constants.IP4_ROUTE_PATH_VANILLA.format(dest_ip_subnet, ip)
                 curr_entity.commands.append(cmd)
 
             # towards source
             if i != 0:
                 cmd = ""
 
-                prev_net = self.get_shared_network(prev, curr)
+                prev_net = self.get_shared_network(prev_name, curr_name)
                 if prev_net is None:
-                    raise RuntimeError(f"Cannot get network shared by {prev} and {curr}")
+                    raise RuntimeError(f"Cannot get network shared by {prev_name} and {curr_name}")
+
+                # if its a switch network, no need to configure a L3 route
+                if prev_net.type == network.NetworkType.L2_NET:
+                    continue
+
+                ip = prev_net.get_entity_ip(prev_name)
+                if ip is None:
+                    raise RuntimeError(f"Cannot find IP of {ip}")
 
                 if utils.topology_is_ipv4():
-                    cmd = constants.IP4_ROUTE_PATH_VANILLA.format(
-                        source_ip_subnet, prev_net.begin_ip
-                    )
+                    cmd = constants.IP4_ROUTE_PATH_VANILLA.format(source_ip_subnet, ip)
                 else:
-                    cmd = constants.IP6_ROUTE_PATH_VANILLA.format(
-                        source_ip_subnet, prev_net.begin_ip
-                    )
+                    cmd = constants.IP6_ROUTE_PATH_VANILLA.format(source_ip_subnet, ip)
 
                 curr_entity.commands.append(cmd)
 
@@ -415,6 +451,10 @@ class Architecure:
             raise RuntimeError(f"Unable to get shared network for {source_entity.name} and "
                                f"{dest} in generate_ip_route_cmds")
 
+        # if its a switch network, no need to configure a L3 route
+        if net.type == network.NetworkType.L2_NET:
+            return
+
         ioam_trace_hex = "0x" + utils.build_ioam_trace_type()
         size_ioam_data = utils.size_ioam_trace() * 2
 
@@ -425,31 +465,48 @@ class Architecure:
         if if_id is None:
             raise RuntimeError(f"Unable to get interface of {source_entity.name} to contact {dest}")
 
+        ip = net.get_entity_ip(dest)
+        if ip is None:
+            raise RuntimeError(f"Cannot get ip of {dest}")
+
         source_entity.commands.append(constants.IP6_ROUTE_DIRECT_IOAM.format(
-            net.end_ip, ioam_trace_hex, size_ioam_data,
+            ip, ioam_trace_hex, size_ioam_data,
             utils.get_interface_name(if_id, source_entity.name)
         ))
 
-    def generate_docker_networks(self) -> None:
-        '''Generate all docker networks based on the architecture.'''
+    def generate_networks(self) -> None:
+        '''Generate all networks based on the architecture.'''
         for pair in self.graph.edges:
-            net = docker_network.DockerNetwork(pair[0], pair[1])
-            self.docker_networks.append(net)
+            # check if entity on each side is NOT a switch because switch
+            # will use a single network for all entities connected to switch
+            begin = self.find_entity(pair[0])
+            end = self.find_entity(pair[1])
 
-    def associate_docker_networks(self) -> None:
-        '''Associate all the entities to the appropriate docker networks.'''
-        for entity in self.entities:
-            for docker_net in self.docker_networks:
-                ip = None
-                if docker_net.begin == entity.name:
-                    ip = docker_net.begin_ip
-                elif docker_net.end == entity.name:
-                    ip = docker_net.end_ip
-                if ip is not None:
-                    entity.attached_networks.append({
-                        "name": docker_net.name,
-                        "ip": ip
-                    })
+            if isinstance(begin, switch.Switch) or isinstance(end, switch.Switch):
+                continue
+
+            net = network.Network(network.NetworkType.L3_NET)
+            net.set_l3_network(begin, end)
+            self.networks.append(net)
+
+            begin.attached_networks.append(net)
+            end.attached_networks.append(net)
+
+        for node in self.graph.nodes:  # network specific to switches
+
+            entity = self.find_entity(node)
+            if isinstance(entity, switch.Switch):
+                net = network.Network(network.NetworkType.L2_NET)
+                net.set_l2_network(node)
+                self.networks.append(net)
+                entity.attached_networks.append(net)
+                entity.network = net
+
+                # link switch network to entities connected to the switch
+                for conn in config_parser.get_entity(self.config, node)["connections"]:
+                    e = self.find_entity(conn)
+                    e.attached_networks.append(net)
+                    net.add_network_interface(e)
 
     def generate_additional_cmds(self) -> None:
         '''Generate extra commands to configure the entities of the architecture.'''
@@ -461,7 +518,6 @@ class Architecure:
             cmds = self.generate_traffic_impairments(entity, conf)
             entity.commands.extend(cmds)
             self.generate_timers(entity, conf)
-
 
     def generate_traffic_impairments(self, entity: entities.Entity, entity_config) -> list:
         '''
@@ -477,8 +533,7 @@ class Architecure:
 
             if_id = self.get_interface_id(entity.name, first_hop)
             if if_id is None:
-                raise RuntimeError(f"Cannot find interface to contact {first_hop} "
-                                   f"from {entity.name}")
+                raise RuntimeError(f"Cannot find interface to contact {first_hop} from {entity.name}")
 
             if_name = utils.get_interface_name(if_id, entity.name)
 
@@ -489,20 +544,16 @@ class Architecure:
             elif "mtu" not in conn:
                 pass
             else:
-                raise RuntimeError(f"MTU must be an integer and greater than 1280 because we are "
-                                   f"using IPv6 for connection {conn} of {entity.name}")
+                raise RuntimeError(f"MTU must be an integer and greater than 1280 because we are using IPv6 for connection {conn} of {entity.name}")
 
             # modify buffer size
             if "buffer_size" in conn and isinstance(conn["buffer_size"], int):
-                cmd = constants.BUFFER_SIZE_OPTION.format(
-                    if_name, conn['buffer_size']
-                )
+                cmd = constants.BUFFER_SIZE_OPTION.format(if_name, conn['buffer_size'])
                 commands.append(cmd)
             elif "buffer_size" not in conn:
                 pass
             else:
-                raise RuntimeError(f"Buffer size must be an integer for connection "
-                                   f"{conn} of {entity.name}")
+                raise RuntimeError(f"Buffer size must be an integer for connection {conn} of {entity.name}")
 
             # impairments with tc command
             cmd = self.generate_tc_command(entity, if_name, conn)
@@ -512,6 +563,7 @@ class Architecure:
         return commands
 
     def generate_tc_command(self, entity: entities.Entity, ifname: str, connection) -> str:
+        """Generate tc command to modify network settings."""
         cmd = constants.IMPAIRMENT_OPTION.format(ifname)
         cmd_original_length = len(cmd)
 
@@ -520,64 +572,56 @@ class Architecure:
             if isinstance(connection["rate"], str) and utils.match_tc_rate(connection["rate"]):
                 cmd += f" rate {connection['rate']}"
             else:
-                raise RuntimeError(f"Rate for connection {connection} of {entity.name} must be a "
-                                    f"int followed by a rate unit valid for tc")
+                raise RuntimeError(f"Rate for connection {connection} of {entity.name} must be a int followed by a rate unit valid for tc")
 
         # modify delay
         if "delay" in connection:
             if isinstance(connection['delay'], str) and utils.match_tc_time(connection["delay"]):
                 cmd += f" delay {connection['delay']}"
             else:
-                raise RuntimeError(f"Delay for connection {connection} of {entity.name} must be a int "
-                                    f"followed by a time unit valid for tc")
+                raise RuntimeError(f"Delay for connection {connection} of {entity.name} must be a int followed by a time unit valid for tc")
             if "jitter" in connection:
                 if isinstance(connection["jitter"], str) and utils.match_tc_time(connection["jitter"]):
                     cmd += f" {connection['jitter']}"
                 else:
-                    raise RuntimeError(f"Jitter for connection {connection} of {entity.name} must be "
-                                        f"a int followed by a time unit valid for tc")
+                    raise RuntimeError(f"Jitter for connection {connection} of {entity.name} must be a int followed by a time unit valid for tc")
 
         # modify jitter
         if "jitter" in connection and "delay" not in connection:
-            raise RuntimeError(f"Cannot specify some jitter and not some delay for connection "
-                                f"{connection} of {entity.name}")
+            raise RuntimeError(f"Cannot specify some jitter and not some delay for connection {connection} of {entity.name}")
 
         # modify loss
         if "loss" in connection:
             if isinstance(connection["loss"], str) and utils.match_tc_percent(connection["loss"]):
                 cmd += f" loss {connection['loss']}"
             else:
-                raise RuntimeError(f"Loss for connection {connection} of {entity.name} must be a int "
-                                    f"followed by %")
+                raise RuntimeError(f"Loss for connection {connection} of {entity.name} must be a int followed by %")
 
         # modify corrupt
         if "corrupt" in connection:
             if isinstance(connection["corrupt"], str) and utils.match_tc_percent(connection["corrupt"]):
                 cmd += f" corrupt {connection['corrupt']}"
             else:
-                raise RuntimeError(f"Corruption rate for connection {connection} of {entity.name} must "
-                                    f"be a int followed by %")
+                raise RuntimeError(f"Corruption rate for connection {connection} of {entity.name} must be a int followed by %")
 
         # modify duplicate
         if "duplicate" in connection:
             if isinstance(connection["duplicate"], str) and utils.match_tc_percent(connection["duplicate"]):
                 cmd += f" duplicate {connection['duplicate']}"
             else:
-                raise RuntimeError(f"Duplicate rate for connection {connection} of {entity.name} must "
-                                    f"be a int followed by %")
+                raise RuntimeError(f"Duplicate rate for connection {connection} of {entity.name} must be a int followed by %")
 
         # modify reorder
         if "reorder" in connection:
             if isinstance(connection["reorder"], str) and utils.match_tc_percent(connection["reorder"]):
                 cmd += f" reorder {connection['reorder']}"
             else:
-                raise RuntimeError(f"Reorder rate for connection {connection} of {entity.name} must be "
-                                    f"a int followed by %")
+                raise RuntimeError(f"Reorder rate for connection {connection} of {entity.name} must be a int followed by %")
 
         if len(cmd) != cmd_original_length:
             return cmd
-        else:
-            return ""
+
+        return ""
 
     def generate_timers(self, entity: entities.Entity, entity_config) -> None:
         '''Generate commands to handle the timers.'''
@@ -591,8 +635,7 @@ class Architecure:
             first_hop = conn['path'].split("->")[0] if "->" in conn["path"] else conn["path"]
             if_id = self.get_interface_id(entity.name, first_hop)
             if if_id is None:
-                raise RuntimeError(f"Unable to find interface for "
-                                    f"{entity.name} and {first_hop}")
+                raise RuntimeError(f"Unable to find interface for {entity.name} and {first_hop}")
             if_name = utils.get_interface_name(if_id, entity.name)
 
             for timer in conn["timers"]:
@@ -623,22 +666,14 @@ class Architecure:
 
                 # generate new command
                 if "mtu" in filtered[0]:
-                    cmd_modify = constants.MODIFY_IMPAIRMENT.format(
-                        timer["start"],
-                        constants.MTU_OPTION.format(if_name, timer["newValue"])
-                    )
+                    cmd_modify = constants.MODIFY_IMPAIRMENT.format(timer["start"], constants.MTU_OPTION.format(if_name, timer["newValue"]))
                 elif "txqueuelen" in filtered[0]:
-                    cmd_modify = constants.MODIFY_IMPAIRMENT.format(
-                        timer["start"],
-                        constants.BUFFER_SIZE_OPTION.format(if_name, timer["newValue"])
-                    )
+                    cmd_modify = constants.MODIFY_IMPAIRMENT.format(timer["start"], constants.BUFFER_SIZE_OPTION.format(if_name, timer["newValue"]))
                 else:
                     connection = copy.deepcopy(conn)
                     connection[timer["option"]] = timer["newValue"]
                     cmd = self.generate_tc_command(entity, if_name, connection)
-                    cmd_modify = constants.MODIFY_IMPAIRMENT_DELETE_TC.format(
-                        timer['start'], if_name, cmd
-                    )
+                    cmd_modify = constants.MODIFY_IMPAIRMENT_DELETE_TC.format(timer['start'], if_name, cmd)
                 entity.commands.append(cmd_modify)
 
                 # generate command to restore original value for impairment
@@ -654,12 +689,7 @@ class Architecure:
                                             f"entity {entity}")
 
                     if "tc" in filtered[0]:
-                        cmd_reset = constants.MODIFY_IMPAIRMENT_DELETE_TC.format(
-                            timer["start"] + timer["duration"], if_name,
-                            filtered[0]
-                        )
+                        cmd_reset = constants.MODIFY_IMPAIRMENT_DELETE_TC.format(timer["start"] + timer["duration"], if_name, filtered[0])
                     else:
-                        cmd_reset = constants.MODIFY_IMPAIRMENT.format(
-                            timer['start'] + timer['duration'], filtered[0]
-                        )
+                        cmd_reset = constants.MODIFY_IMPAIRMENT.format(timer['start'] + timer['duration'], filtered[0])
                     entity.commands.append(cmd_reset)

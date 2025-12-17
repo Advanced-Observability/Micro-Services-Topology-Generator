@@ -7,12 +7,15 @@ from typing import Any
 from string import Template
 
 import utils
+import network
 import entities
 import constants
 import kubernetes
 
 
 class FirewallRule():
+    """Represent a firewall rule."""
+
     def __init__(self, source="", sport="", dest="", dport="", proto="", action="", extension="", custom=""):
         self.source = source
         self.sport = sport
@@ -34,6 +37,7 @@ class FirewallRule():
                 f"custom: {self.custom}"
 
     def pretty(self) -> str:
+        """Pretty print the rule."""
         return self.__str__()
 
     def export_rule(self) -> str:
@@ -51,11 +55,11 @@ class FirewallRule():
             cmd+=f"-p {self.proto} "
         if self.source != "":
             cmd+=f"-s {self.source} "
-        if self.sport != "" and self.sport != "*":
+        if self.sport not in ("", "*"):
             cmd+=f"--sport {self.sport} "
         if self.destination != "":
             cmd+=f"-d {self.destination} "
-        if self.dport != "" and self.dport != "*":
+        if self.dport not in ("", "*"):
             cmd+=f"--dport {self.dport} "
         if self.extension != "":
             cmd+=f"{self.extension} "
@@ -67,32 +71,32 @@ class FirewallRule():
 def parse_rule(rule: Any):
     """Parse rule from YML."""
 
-    fwRule = FirewallRule()
+    fw_rule = FirewallRule()
     if "source" in rule and rule["source"] is not None:
-        fwRule.source = rule["source"]
+        fw_rule.source = rule["source"]
 
     if "sport" in rule and rule["sport"] is not None:
-        fwRule.sport = rule["sport"]
+        fw_rule.sport = rule["sport"]
 
     if "destination" in rule and rule["destination"] is not None:
-        fwRule.destination = rule["destination"]
+        fw_rule.destination = rule["destination"]
 
     if "dport" in rule and rule["dport"] is not None:
-        fwRule.dport = rule["dport"]
+        fw_rule.dport = rule["dport"]
 
     if "protocol" in rule and rule["protocol"] is not None:
-        fwRule.proto = rule["protocol"]
+        fw_rule.proto = rule["protocol"]
 
     if "action" in rule and rule["action"] is not None:
-        fwRule.action = rule["action"]
+        fw_rule.action = rule["action"]
 
     if "extension" in rule and rule["extension"] is not None:
-        fwRule.extension = rule["extension"]
+        fw_rule.extension = rule["extension"]
 
     if "custom" in rule and rule["custom"] is not None:
-        fwRule.custom = rule["custom"]
+        fw_rule.custom = rule["custom"]
 
-    return fwRule
+    return fw_rule
 
 class Firewall(entities.Entity):
     """Represent a firewall in the architecture."""
@@ -102,7 +106,6 @@ class Firewall(entities.Entity):
         self.rules : list[FirewallRule] = []
         self.config = config
         self.default = ""
-        self.default.lower()
         self.configure_firewall()
 
     def __str__(self):
@@ -111,9 +114,7 @@ class Firewall(entities.Entity):
     def pretty(self):
         """Indented string describing the object."""
 
-        rules = ""
-        for rule in self.rules:
-            rules+=f"\n\t\t- {rule}"
+        rules = "\n\t\t- " + "\n\t\t- ".join(self.rules)
 
         return f"Firewall: {self.name}"\
                 f"\n\t- rules: {rules}"\
@@ -159,20 +160,33 @@ class Firewall(entities.Entity):
     def export_compose_networks(self, file) -> None:
         """Export network settings in Docker compose."""
 
+        if self.count_l3_networks() == 0:
+            return
+
         file.write("    networks:\n")
-        for i in range(len(self.attached_networks)):
+
+        for i, net in enumerate(self.attached_networks):
+
+            # do not attach L2 network. Will be configured with veth
+            if net.type == network.NetworkType.L2_NET:
+                continue
+
+            name = net.name
+            ip = net.get_entity_ip(self.name)
+            mac = net.get_entity_mac(self.name)
+            ifname = utils.get_interface_name(i, self.name)
+
+            mappings = {
+                "net_name": name,
+                "ip": ip,
+                "mac": mac,
+                "ifname": ifname
+            }
+
             if utils.topology_is_ipv4():
-                file.write(constants.COMPOSE_IPV4_NET_SPEC.substitute({
-                    "net_name": self.attached_networks[i]["name"],
-                    "ifname": utils.get_interface_name(i, self.name),
-                    "ip": str(self.attached_networks[i]["ip"])
-                }))
+                file.write(constants.COMPOSE_IPV4_NET_SPEC.substitute(mappings))
             else:
-                file.write(constants.COMPOSE_IPV6_NET_SPEC.substitute({
-                    "net_name": self.attached_networks[i]["name"],
-                    "ifname": utils.get_interface_name(i, self.name),
-                    "ip": str(self.attached_networks[i]["ip"])
-                }))
+                file.write(constants.COMPOSE_IPV6_NET_SPEC.substitute(mappings))
 
     def export_compose(self, file) -> None:
         """Export the firewall in the given docker compose file."""
@@ -229,10 +243,7 @@ class Firewall(entities.Entity):
         pod = constants.TEMPLATE_K8S_POD.substitute(pod_config)
 
         # output file
-        with open(
-            os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_pod.yaml"),
-            "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_pod.yaml"), "w", encoding="utf-8") as f:
             f.write(pod)
 
             # write extra hosts
@@ -250,15 +261,10 @@ class Firewall(entities.Entity):
         service_config = {
             "name": f"{self.name}-svc",
             "podName": f"{self.name}-pod",
-            "ports": Template(constants.K8S_SERVICE_PORT).substitute(
-                {"port": port, "nodePort": port}
-            )
+            "ports": Template(constants.K8S_SERVICE_PORT).substitute({"port": port, "nodePort": port})
         }
         service = constants.TEMPLATE_K8S_SERVICE.substitute(service_config)
 
-        with open(
-            os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_service.yaml"),
-            "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_service.yaml"), "w", encoding="utf-8") as f:
             f.write(service)
             f.close()

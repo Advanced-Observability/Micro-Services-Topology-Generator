@@ -7,11 +7,11 @@ From a single user-provided configuration `yml` file, it generates the intermedi
 The following entities can be added in the topologies:
 - Microservices, which are all instances of the same generic program, will sequentially send requests to the services they are connected to before responding to their own requests;
 - External Docker images. Thus, you can reuse your existing containers;
-- Routers and firewalls to simulate a real network environment.
+- Routers, firewalls, and switches to simulate a real network environment.
 
 See [generator/README.md](./generator/README.md) for details on the generator of configuration files.
 
-Architecture of MSTG:
+## Architecture of MSTG
 
 ![architecture](./MSTG.png)
 
@@ -29,3 +29,8 @@ Furthermore, telemetry data related to the routers will be generated with [IOAM]
 ## Requirements
 
 See [requirements.md](./requirements.md).
+
+## Disclaimer
+
+> [!WARNING]
+> This tool is intended for testing purposes. One should refrain from using this tool in a production environment.

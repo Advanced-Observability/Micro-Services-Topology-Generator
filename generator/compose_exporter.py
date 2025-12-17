@@ -1,10 +1,10 @@
 """
-Export the architecture to the configuration file
-for Docker Compose.
+Export the architecture to the configuration file for Docker Compose.
 """
 
 import utils
 import router
+import switch
 import exporter
 import services
 import firewall
@@ -21,7 +21,7 @@ class ComposeExporter(exporter.Exporter):
 
     def write_docker_networks(self, file) -> None:
         '''Write all docker networks into the given `file` as in a docker compose file.'''
-        for network in self.arch.docker_networks:
+        for network in self.arch.networks:
             network.export_compose(file)
             file.write("\n")
 
@@ -46,12 +46,21 @@ class ComposeExporter(exporter.Exporter):
                 entity.export_compose(file)
                 file.write("\n")
 
+    def write_switches(self, file) -> None:
+        '''Write all the switches into the given `file`.'''
+        for entity in self.arch.entities:
+            if isinstance(entity, switch.Switch):
+                entity.export_compose(file)
+                file.write("\n")
+
     def write_docker_compose(self) -> None:
         '''Write the given architecture in a file as a docker compose configuration.'''
         with open(self.filename, 'w', encoding="utf-8") as f:
 
+            utils.print_info("Writing networks...")
+
             # write all the docker networks
-            if utils.is_using_jaeger() or len(self.arch.docker_networks) > 0:
+            if utils.is_using_jaeger() or self.arch.count_l3_networks() > 0:
                 f.write("networks:\n")
 
             if utils.topology_is_ipv4() and utils.is_using_jaeger():
@@ -62,6 +71,7 @@ class ComposeExporter(exporter.Exporter):
             self.write_docker_networks(f)
 
             # write all the entities
+            utils.print_info("Writing all the services...")
             f.write("services:\n")
 
             # write jaeger if used
@@ -78,9 +88,14 @@ class ComposeExporter(exporter.Exporter):
 
             # write other entities
             f.write("\n")
+            utils.print_info("Writing routers...")
             self.write_routers(f)
+            utils.print_info("Writing services...")
             self.write_services(f)
+            utils.print_info("Writing firewalls...")
             self.write_firewalls(f)
+            utils.print_info("Writing switches...")
+            self.write_switches(f)
 
     def export(self):
         # empty commands file

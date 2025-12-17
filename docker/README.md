@@ -18,3 +18,6 @@ Represent a service in the topology.
 
 Represent a firewall in the topology.
 
+## [Switch](./switch/)
+
+Represent a switch in the topology.

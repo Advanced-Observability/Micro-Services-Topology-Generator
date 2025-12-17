@@ -42,7 +42,6 @@ def gen_config_files(args=None):
             edge_color='dimgray', arrows=True, with_labels=True
         )
         plt.savefig("architecture.svg")
-        plt.show(block=False)
     utils.print_success("Built architecture.")
 
     if not utils.is_measuring_time() and utils.debug_mode_is_on():

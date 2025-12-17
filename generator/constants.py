@@ -15,7 +15,7 @@ def read_file(path: str) -> str:
 
 # --------------------------------------------------------------------------------------------------
 
-VERSION = "0.0.6"
+VERSION = "0.0.7"
 
 DEFAULT_CONFIG_FILE = "./config.yml"
 
@@ -61,9 +61,11 @@ OUTPUT_FORMAT_ENV = "OUTPUT_FORMAT_ENV"
 # -- network --
 
 NETWORK_NAME = "network_{}_{}"
+SWITCH_NET_NAME = "network_switch_{}"
 
 # -- commands --
-TEMPLATE_CMD = "docker exec {} bash -c \'{}\'"
+
+TEMPLATE_CMD = "docker exec {} sh -c \'{}\'"
 TEMPLATE_CMD_KUBECTL = "kubectl exec {} -- bash -c \'{}\'"
 CMD_INLINE_SYSCTL = """for sInterface in /proc/sys/net/ipv6/conf/*; do name=$(basename $sInterface); sysctl -q -w net.ipv6.conf.$name.ioam6_enabled=1; sysctl -q -w net.ipv6.conf.$name.ioam6_id={}; done"""
 
@@ -74,6 +76,7 @@ ROUTER_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "rout
 SERVICE_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "service-template.yml")))
 EXTERNAL_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "external-template.yml")))
 FIREWALL_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "firewall-template.yml")))
+SWITCH_TEMPLATE = Template(read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "switch-template.yml")))
 JAEGER_SERVICE = read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "jaeger-service.yml"))
 IOAM_COLLECTOR_SERVICE = read_file(os.path.join(TEMPLATE_COMPOSE_FOLDER, "ioam-collector-ipv6.yml"))
 
@@ -147,22 +150,36 @@ IP4_ROUTE_PATH_VANILLA = "/sbin/ip r a {} via {}"
 
 DROP_ICMP_REDIRECT = "iptables -A OUTPUT -p icmp --icmp-type 5 -j DROP && "\
   "iptables -A INPUT -p icmp --icmp-type 5 -j DROP"
-LAUNCH_SERVICE = "/usr/local/bin/service /etc/config.yml"
+IPTABLES_DEFAULT_ROUTE = "iptables -P FORWARD {}"
+IP6TABLES_DEFAULT_ROUTE = "ip6tables -P FORWARD {}"
+
 ADD_IOAM_NAMESPACE = "/sbin/ip ioam namespace add 123"
-LAUNCH_INTERFACE_SCRIPT = "sh set_interfaces.sh"
+
 DELETE_DEFAULT_IPV6_ROUTE = "ip -6 r d default"
 DELETE_DEFAULT_IPV4_ROUTE = "ip r d default"
+
+LAUNCH_SERVICE = "/usr/local/bin/service /etc/config.yml"
+LAUNCH_INTERFACE_SCRIPT = "sh set_interfaces.sh"
 LAUNCH_IOAM_AGENT = "/ioam-agent -i eth0"
 LAUNCH_BACKGROUND_PROCESS = "tail -f /dev/null"
 
-IPTABLES_DEFAULT_ROUTE = "iptables -P FORWARD {}"
-IP6TABLES_DEFAULT_ROUTE = "ip6tables -P FORWARD {}"
+OVS_CHECK_CMD = "lsmod | awk '{print $1}' | grep -i openvswitch"
+OVS_ENABLE_SERVICE = "service openvswitch-switch start"
+OVS_ADD_BRIDGE = "ovs-vsctl add-br {}"
+OVS_ADD_PORT = "ovs-vsctl add-port {} {}"
+
+LINUX_CREATE_VETH = "ip link add {} type veth peer name {}"
+LINUX_MOVE_VETH_TO_NS = "ip link set {} netns $pid"
+LINUX_SET_LINK_UP = "ip link set {} up"
+LINUX_SET_IP_ADDRESS = "ip addr add {} dev {}"
+
+DOCKER_GET_PID = Template("""docker inspect -f '{{.State.Pid}}' ${name}""")
 
 # --------------------------------------- FOR PARSING THE CONFIG -----------------------------------
 
 # Types of entities supported by the generator
-KNOWN_TYPES = ["service", "router", "external", "firewall"]
-INTERMEDIARY_TYPES = ["router", "firewall"]
+KNOWN_TYPES = ["service", "router", "external", "firewall", "switch"]
+INTERMEDIARY_TYPES = ["router", "firewall", "switch"]
 END_HOST_TYPES = ["service", "external"]
 
 # Fields shared by all types
@@ -183,6 +200,9 @@ FIREWALL_RULES_FIELDS = [
     "protocol", "action",
     "extension", "custom"
 ]
+
+# Fields for switch
+SWITCH_FIELDS = ["connections"]
 
 # Ports used by telemtry
 TELEMETRY_PORTS = [1686, 14268, 4317, 4318, 7123]
@@ -227,15 +247,15 @@ PATH_KEY_FILE = "/server.key"
 COMPOSE_IPV4_NET_SPEC = Template("""
       ${net_name}:
         ipv4_address: ${ip}
-        driver_opts:
-          com.docker.network.endpoint.ifname: ${ifname}
+        mac_address: ${mac}
+        interface_name: ${ifname}
 """)
 
 COMPOSE_IPV6_NET_SPEC = Template("""
       ${net_name}:
         ipv6_address: ${ip}
-        driver_opts:
-          com.docker.network.endpoint.ifname: ${ifname}
+        mac_address: ${mac}
+        interface_name: ${ifname}
 """)
 
 COMPOSE_JAEGER_IPV4 = """        ipv4_address: 0.0.4.2"""

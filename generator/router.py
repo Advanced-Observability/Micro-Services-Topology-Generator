@@ -7,6 +7,7 @@ from string import Template
 import os
 
 import utils
+import network
 import entities
 import constants
 import kubernetes
@@ -48,20 +49,32 @@ class Router(entities.Entity):
     def export_compose_networks(self, file) -> None:
         """Export network settings in Docker compose."""
 
+        if self.count_l3_networks() == 0:
+            return
+
         file.write("    networks:\n")
-        for i in range(len(self.attached_networks)):
+
+        for i, net in enumerate(self.attached_networks):
+            # do not attach L2 network. Will be configured with veth
+            if net.type == network.NetworkType.L2_NET:
+                continue
+
+            name = net.name
+            ip = net.get_entity_ip(self.name)
+            mac = net.get_entity_mac(self.name)
+            ifname = utils.get_interface_name(i, self.name)
+
+            mappings = {
+                "net_name": name,
+                "ip": ip,
+                "mac": mac,
+                "ifname": ifname
+            }
+
             if utils.topology_is_ipv4():
-                file.write(constants.COMPOSE_IPV4_NET_SPEC.substitute({
-                    "net_name": self.attached_networks[i]["name"],
-                    "ifname": utils.get_interface_name(i, self.name),
-                    "ip": str(self.attached_networks[i]["ip"])
-                }))
+                file.write(constants.COMPOSE_IPV4_NET_SPEC.substitute(mappings))
             else:
-                file.write(constants.COMPOSE_IPV6_NET_SPEC.substitute({
-                    "net_name": self.attached_networks[i]["name"],
-                    "ifname": utils.get_interface_name(i, self.name),
-                    "ip": str(self.attached_networks[i]["ip"])
-                }))
+                file.write(constants.COMPOSE_IPV6_NET_SPEC.substitute(mappings))
 
     def export_compose(self, file) -> None:
         """Export the router in the given docker compose file."""
@@ -76,9 +89,7 @@ class Router(entities.Entity):
 
         # sysctl configuration
         if utils.is_using_clt() or utils.is_using_ioam_only():
-            file.write(
-                Template(constants.COMPOSE_SYSCTL_DEFAULTS).substitute({"ioam_id": self.ioam_id})
-            )
+            file.write(Template(constants.COMPOSE_SYSCTL_DEFAULTS).substitute({"ioam_id": self.ioam_id}))
 
         # depends_on
         if len(self.depends_on) > 0:
@@ -119,10 +130,7 @@ class Router(entities.Entity):
         pod = constants.TEMPLATE_K8S_POD.substitute(pod_config)
 
         # output file
-        with open(
-            os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_pod.yaml"),
-            "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_pod.yaml"), "w", encoding="utf-8") as f:
             f.write(pod)
 
             # write sysctls
@@ -135,15 +143,10 @@ class Router(entities.Entity):
         service_config = {
             "name": f"{self.name}-svc",
             "podName": f"{self.name}-pod",
-            "ports": Template(constants.K8S_SERVICE_PORT).substitute(
-                {"port": port, "nodePort": port}
-            )
+            "ports": Template(constants.K8S_SERVICE_PORT).substitute({"port": port, "nodePort": port})
         }
         service = constants.TEMPLATE_K8S_SERVICE.substitute(service_config)
 
-        with open(
-            os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_service.yaml"),
-            "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_service.yaml"), "w", encoding="utf-8") as f:
             f.write(service)
             f.close()

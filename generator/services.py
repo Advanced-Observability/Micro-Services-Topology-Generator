@@ -7,6 +7,7 @@ from string import Template
 import os
 
 import utils
+import network
 import entities
 import constants
 import kubernetes
@@ -111,9 +112,7 @@ class Service(entities.Entity):
         # sysctl configuration
         if utils.is_using_clt() or utils.is_using_ioam_only():
             file.write("    sysctls:")
-            file.write(
-                Template(constants.COMPOSE_SYSCTL_DEFAULTS).substitute({"ioam_id": self.ioam_id})
-            )
+            file.write(Template(constants.COMPOSE_SYSCTL_DEFAULTS).substitute({"ioam_id": self.ioam_id}))
 
         # depends_on
         self.export_compose_depends_on(file)
@@ -131,7 +130,7 @@ class Service(entities.Entity):
         """Export network settings in Docker compose."""
 
         # no network to attach
-        if len(self.attached_networks) == 0 and not utils.is_using_jaeger():
+        if self.count_l3_networks() == 0 and not utils.is_using_jaeger():
             return
 
         file.write("    networks:\n")
@@ -139,19 +138,27 @@ class Service(entities.Entity):
         if utils.is_using_jaeger():
             file.write("      network_telemetry:\n")
 
-        for i in range(len(self.attached_networks)):
+        for i, net in enumerate(self.attached_networks):
+            # do not attach L2 network. Will be configured with veth
+            if net.type == network.NetworkType.L2_NET:
+                continue
+
+            name = net.name
+            ip = net.get_entity_ip(self.name)
+            mac = net.get_entity_mac(self.name)
+            ifname = utils.get_interface_name(i, self.name)
+
+            mappings = {
+                "net_name": name,
+                "ip": ip,
+                "mac": mac,
+                "ifname": ifname
+            }
+
             if utils.topology_is_ipv4():
-                file.write(constants.COMPOSE_IPV4_NET_SPEC.substitute({
-                    "net_name": self.attached_networks[i]["name"],
-                    "ip": str(self.attached_networks[i]["ip"]),
-                    "ifname": utils.get_interface_name(i, self.name)
-                }))
+                file.write(constants.COMPOSE_IPV4_NET_SPEC.substitute(mappings))
             else:
-                file.write(constants.COMPOSE_IPV6_NET_SPEC.substitute({
-                    "net_name": self.attached_networks[i]["name"],
-                    "ip": str(self.attached_networks[i]["ip"]),
-                    "ifname": utils.get_interface_name(i, self.name)
-                }))
+                file.write(constants.COMPOSE_IPV6_NET_SPEC.substitute(mappings))
 
     def export_compose_depends_on(self, file) -> None:
         """Export depends on in Docker compose."""
@@ -217,10 +224,7 @@ class Service(entities.Entity):
         pod = constants.TEMPLATE_K8S_POD.substitute(pod_config)
 
         # output file
-        f = open(
-            os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_pod.yaml"),
-            "w", encoding="utf-8"
-        )
+        f = open(os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_pod.yaml"), "w", encoding="utf-8")
         f.write(pod)
 
         # write sysctls
@@ -254,8 +258,5 @@ class Service(entities.Entity):
             "ports": ports
         }
         service = constants.TEMPLATE_K8S_SERVICE.substitute(service_config)
-        with open(
-            os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_service.yaml"),
-            "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(constants.K8S_EXPORT_FOLDER, f"{self.name}_service.yaml"), "w", encoding="utf-8") as f:
             f.write(service)

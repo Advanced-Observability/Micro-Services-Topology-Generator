@@ -1,0 +1,10 @@
+  ${name}:
+    container_name: ${name}
+    hostname: ${name}
+    image: ${dockerImage}
+    command: sh -c "${commands}"
+    restart: on-failure
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN

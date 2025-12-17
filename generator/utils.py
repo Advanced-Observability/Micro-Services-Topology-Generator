@@ -8,6 +8,7 @@ import sys
 import argparse
 import bitarray
 import ipaddress
+import subprocess
 import bitarray.util
 
 import constants
@@ -116,8 +117,8 @@ def get_interface_name(id: int, name: str) -> str:
     """Get the name of an interface."""
     if output_is_k8s():
         return f"eth{id}"
-    else:
-        return f"eth{id}_{name}"
+
+    return f"eth{id}_{name}"
 
 
 def output_is_compose() -> bool:
@@ -174,6 +175,20 @@ def topology_is_https() -> bool:
     """True if the topology is using HTTPS."""
     return os.environ[constants.HTTP_VER_ENV] == "https"
 
+def convert_net_id_to_mac_addresses(id: int) -> list[str]:
+    '''Convert the given network `id` to 2 mac addresses.'''
+
+    # convert to hex without 0x
+    prefix = hex(id)[2:]
+    size = len(prefix)
+
+    # ensure 10 bytes of prefix and convert to str
+    prefix = '0' * (10 - size) + prefix
+    mac_prefix = ':'.join(prefix[i:i+2] for i in range(0, len(prefix), 2))
+
+    # use addr 01 and 02 of calculated prefix
+    macs = [f'{mac_prefix}:01', f'{mac_prefix}:02']
+    return macs
 
 def convert_net_id_to_ip6_net(prefix: int) -> ipaddress.IPv6Network:
     '''
@@ -340,6 +355,16 @@ def size_ioam_trace() -> int:
         pass
 
     return size
+
+def check_ovs_kernel_module() -> bool:
+    '''Check whether the kernel module for OVS is properly loaded.'''
+
+    res = subprocess.run(constants.OVS_CHECK_CMD, shell=True, stdout=subprocess.PIPE, check=False)
+
+    if "openvswitch" not in res.stdout.decode('utf-8').strip():
+        return False
+
+    return res.returncode == 0
 
 
 def print_success(text: str):

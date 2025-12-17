@@ -57,7 +57,7 @@ The tool uses the following directories and files:
 - `compose_exporter` exports the internal representation into a `docker-compose.yml` file;
 - `config_parser.py` is the parser for the configuration files;
 - `constants.py` contains constant values used throughout the code;
-- `docker_network.py` represent a Docker network for Docker compose;
+- `network.py` represent a network (IP subnet);
 - `entities.py` represents the entities in the internal representation;
 - `exporter.py` is the abstract exporter of the internal representation;
 - `firewall.py` represents a firewall;

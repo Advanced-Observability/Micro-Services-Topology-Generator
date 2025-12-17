@@ -105,7 +105,7 @@ def test_check_connectivity(capsys):
             '--clt', '--ip', '6', '--ioam', '--jaeger'
         ])
     captured = capsys.readouterr()
-    assert "Destination r1" in captured.out and "does not exists" in captured.out, "Unexpected output"
+    assert "Destination r1" in captured.out and "does not exist" in captured.out, "Unexpected output"
 
     # intermediary is not a router
     with pytest.raises(RuntimeError):
@@ -114,7 +114,7 @@ def test_check_connectivity(capsys):
             '--clt', '--ip', '6', '--ioam', '--jaeger'
         ])
     captured = capsys.readouterr()
-    assert "Intermediary hop" in captured.out and "is not a router" in captured.out, "Unexpected output"
+    assert "Intermediary hop" in captured.out and "is not an intermediary node" in captured.out, "Unexpected output"
 
     # no coherency with connections in router
     with pytest.raises(RuntimeError):
@@ -150,7 +150,7 @@ def test_check_connectivity(capsys):
             '--clt', '--ip', '6', '--ioam', '--jaeger'
         ])
     captured = capsys.readouterr()
-    assert "Destination of connection" in captured.out and "is not a service" in captured.out, "Unexpected output"
+    assert "Destination of connection" in captured.out and "is not a end host" in captured.out, "Unexpected output"
 
 def test_check_connection_specifications(capsys):
     with pytest.raises(RuntimeError):
